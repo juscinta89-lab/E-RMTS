@@ -41,24 +41,36 @@ mod tahun persekolahan berbilang sesi. Semua ni boleh saya sambung bila-bila.
 ## Langkah 1 — Sediakan Firebase
 
 1. Pergi ke <https://console.firebase.google.com> → **Add project** (cth: `rmt-sk-belukar`).
-2. **Build → Authentication → Get started → Sign-in method → Email/Password → Enable.**
+2. **Build → Authentication → Get started → Sign-in method** → **Add new provider**:
+   - **Google** → Enable → pilih "Project support email" → **Save** *(ini untuk log masuk guna Google ID)*.
+   - (Pilihan) **Email/Password** → Enable → **Save** *(kalau ada guru tanpa akaun Google)*.
 3. **Build → Firestore Database → Create database** → mula dalam *production mode*.
 4. **Project settings (⚙️) → General → Your apps → Web (`</>`)** → daftar app →
    salin objek `firebaseConfig`.
 5. Buka `js/firebase-config.js` → gantikan semua nilai `GANTIKAN_...` dengan config anda.
 6. **Firestore → Rules** → tampal kandungan fail `firestore.rules` → **Publish**.
 
-### Cipta pengguna pertama (admin)
-Firebase Auth simpan kata laluan; profil/peranan disimpan dalam koleksi `users`.
-Cara paling mudah:
+### Cipta admin pertama (guna Google ID)
+Peranan/kredensial dipadan ikut **emel**. ID dokumen dalam koleksi `users` = emel pengguna,
+supaya serasi dengan Security Rules. Untuk admin pertama, daftar emel Google anda secara manual:
 
-1. **Authentication → Users → Add user** → masukkan emel + kata laluan admin.
-2. **Firestore → Start collection `users`** → Document ID = **UID pengguna tadi** →
-   medan: `nama` (string), `role` = `Administrator`, `email` = emel tadi, `aktif` = true.
-3. Log masuk aplikasi guna emel + kata laluan tersebut. Selepas itu admin boleh
-   tambah pengguna/guru lain terus dari aplikasi.
+1. **Firestore → Start collection** → Collection ID: `users`.
+2. **Document ID** = emel Google anda sendiri (cth: `guru.besar@gmail.com`).
+3. Tambah medan:
+   - `nama` (string) = nama anda
+   - `role` (string) = `Administrator`
+   - `email` (string) = emel yang sama
+   - `aktif` (boolean) = `true`
+4. Buka aplikasi → **Log masuk dengan Google** → pilih akaun Google tersebut.
+   Anda terus masuk sebagai Administrator.
+5. Selepas itu, tambah guru lain terus dari aplikasi (**Guru & Pengguna**) —
+   cukup isi **emel akaun Google** mereka + peranan + kelas. Bila mereka log masuk
+   Google guna emel sama, mereka automatik dapat akses. Tiada kata laluan diperlukan.
 
-> Nota: log masuk Firebase guna **emel**, bukan username. Isi ruang "ID Pengguna / Emel" dengan emel.
+> **PENTING (domain dibenarkan):** selepas deploy ke GitHub Pages, pergi ke
+> **Authentication → Settings → Authorized domains → Add domain** dan masukkan
+> `USERNAME.github.io`. Untuk uji secara lokal, tambah juga `localhost`.
+> Tanpa ini, log masuk Google akan gagal walau config betul.
 
 ---
 

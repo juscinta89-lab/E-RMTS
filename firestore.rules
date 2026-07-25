@@ -5,13 +5,13 @@ service cloud.firestore {
     // Fungsi bantuan
     function isSignedIn() { return request.auth != null; }
 
-    // Profil pengguna: cari role ikut emel log masuk
+    // Profil pengguna disimpan dengan ID dokumen = emel pengguna
     function profile() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+      return get(/databases/$(database)/documents/users/$(request.auth.token.email));
     }
     function isAdmin() {
       return isSignedIn()
-        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && exists(/databases/$(database)/documents/users/$(request.auth.token.email))
         && profile().data.role in ['Administrator','Guru Besar','PK HEM'];
     }
 

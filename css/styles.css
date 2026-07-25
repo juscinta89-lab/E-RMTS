@@ -245,3 +245,9 @@ table.c8 thead th{background:#D9DEE2;color:#1B2430;font-weight:700;padding:4px 3
   table.c8{font-size:9px;min-width:0;width:100%}
   @page{size:A4 landscape;margin:8mm}
 }
+
+/* ---------- Butang Google & pemisah ---------- */
+.or-sep{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:12px;margin:16px 0}
+.or-sep::before,.or-sep::after{content:"";flex:1;height:1px;background:var(--line)}
+.btn-google{width:100%;border:1px solid var(--line);background:var(--card);color:var(--ink);font-weight:600}
+.btn-google:hover{background:var(--bg)}

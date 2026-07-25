@@ -138,8 +138,12 @@ const DB = {
     return [...DEMO.users];
   },
   async saveUser(o){
-    if(USE_FIREBASE){ if(o.id){const {id,...r}=o;await fbDB.collection('users').doc(id).set(r,{merge:true});}
-      else await fbDB.collection('users').add(o); return; }
+    if(USE_FIREBASE){
+      // emel = ID dokumen (padanan log masuk Google/emel + serasi Security Rules)
+      const {id,...r}=o;
+      await fbDB.collection('users').doc(o.email).set(r,{merge:true});
+      return;
+    }
     if(o.id){const i=DEMO.users.findIndex(u=>u.id===o.id);DEMO.users[i]=o;}
     else DEMO.users.push({...o,id:uid()}); saveDemo(DEMO);
   },
@@ -191,19 +195,46 @@ const DB = {
 let CURRENT=null; // {id,nama,role,kelasId,...}
 const isAdmin = ()=> CURRENT && ['Administrator','Guru Besar','PK HEM'].includes(CURRENT.role);
 
+// Padankan pengguna Firebase (Google/emel) dengan profil dalam koleksi `users`.
+// ID dokumen users = emel pengguna, jadi ia serasi dengan Security Rules.
+async function resolveProfile(user){
+  const doc=await fbDB.collection('users').doc(user.email).get();
+  if(!doc.exists){
+    await fbAuth.signOut();
+    throw new Error('Emel '+user.email+' belum didaftarkan. Minta Administrator tambah emel anda di modul Guru & Pengguna.');
+  }
+  const data=doc.data();
+  if(data.aktif===false){ await fbAuth.signOut(); throw new Error('Akaun anda dinyahaktifkan.'); }
+  CURRENT={id:doc.id,...data};
+  sessionStorage.setItem('rmt_current',JSON.stringify(CURRENT));
+}
+
+async function doGoogleLogin(){
+  const provider=new firebase.auth.GoogleAuthProvider();
+  provider.setCustomParameters({prompt:'select_account'});
+  try{
+    const cred=await fbAuth.signInWithPopup(provider);
+    await resolveProfile(cred.user);
+  }catch(e){
+    // Kalau popup disekat (biasa pada mod PWA), guna redirect. Hasil dikendali di init().
+    if(['auth/popup-blocked','auth/operation-not-supported-in-this-environment','auth/cancelled-popup-request'].includes(e.code)){
+      await fbAuth.signInWithRedirect(provider); return;
+    }
+    throw e;
+  }
+}
+
 async function doLogin(username,password){
   if(USE_FIREBASE){
-    // Firebase: username dilayan sebagai email
+    // Firebase: username dilayan sebagai emel
     const cred=await fbAuth.signInWithEmailAndPassword(username,password);
-    const prof=await fbDB.collection('users').where('email','==',cred.user.email).limit(1).get();
-    CURRENT = prof.empty ? {id:cred.user.uid,nama:cred.user.email,role:'Guru Kelas',kelasId:null}
-                         : {id:prof.docs[0].id,...prof.docs[0].data()};
+    await resolveProfile(cred.user);
   }else{
     const u=DEMO.users.find(x=>x.username===username && x.password===password && x.aktif);
     if(!u) throw new Error('ID pengguna atau kata laluan salah.');
     CURRENT={...u};
+    sessionStorage.setItem('rmt_current',JSON.stringify(CURRENT));
   }
-  sessionStorage.setItem('rmt_current',JSON.stringify(CURRENT));
 }
 function restoreSession(){
   try{const c=sessionStorage.getItem('rmt_current');if(c){CURRENT=JSON.parse(c);return true;}}catch(e){}
@@ -224,6 +255,10 @@ function renderAuth(){
   const modeTag = USE_FIREBASE
      ? '<p style="color:var(--blue);font-size:12px">Mod Firebase aktif</p>'
      : '<p style="color:var(--warn);font-size:12px">Mod Demo — admin/admin123 atau cikgu/cikgu123</p>';
+  const googleG = '<svg width="18" height="18" viewBox="0 0 48 48"><path fill="#4285F4" d="M45.1 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h11.8c-.5 2.7-2 5-4.4 6.6v5.5h7.1c4.2-3.8 6.6-9.5 6.6-16.1z"/><path fill="#34A853" d="M24 46c6 0 11-2 14.6-5.4l-7.1-5.5c-2 1.3-4.5 2.1-7.5 2.1-5.8 0-10.6-3.9-12.4-9.1H4.3v5.7C7.9 41.1 15.4 46 24 46z"/><path fill="#FBBC05" d="M11.6 28.1c-.5-1.3-.7-2.7-.7-4.1s.3-2.8.7-4.1v-5.7H4.3C2.8 17.1 2 20.4 2 24s.8 6.9 2.3 9.8l7.3-5.7z"/><path fill="#EA4335" d="M24 10.8c3.3 0 6.2 1.1 8.5 3.3l6.3-6.3C35 4.1 30 2 24 2 15.4 2 7.9 6.9 4.3 14.2l7.3 5.7c1.8-5.2 6.6-9.1 12.4-9.1z"/></svg>';
+  const googleBlock = USE_FIREBASE ? `
+      <button class="btn btn-google" id="lg-google">${googleG} Log masuk dengan Google</button>
+      <div class="or-sep"><span>atau guna emel &amp; kata laluan</span></div>` : '';
   root.innerHTML=`
     <div class="auth-card card">
       <div class="auth-brand">
@@ -232,12 +267,20 @@ function renderAuth(){
         <p>Rekod Kehadiran Murid RMT · Borang C8 KPM</p>
         ${modeTag}
       </div>
+      ${googleBlock}
       <div class="field"><label>ID Pengguna / Emel</label>
         <input id="lg-user" autocomplete="username" placeholder="admin"></div>
       <div class="field"><label>Kata Laluan</label>
         <input id="lg-pass" type="password" autocomplete="current-password" placeholder="••••••••"></div>
       <button class="btn btn-primary" id="lg-btn" style="width:100%">Log Masuk</button>
     </div>`;
+  if(USE_FIREBASE){
+    $('#lg-google').onclick=async()=>{
+      const gb=$('#lg-google'); gb.disabled=true; gb.innerHTML='<span class="spinner dark"></span>';
+      try{ await doGoogleLogin(); if(CURRENT) enterApp(); }
+      catch(e){ toast(e.message||'Log masuk Google gagal.','err'); gb.disabled=false; gb.innerHTML=`${googleG} Log masuk dengan Google`; }
+    };
+  }
   const submit=async()=>{
     const btn=$('#lg-btn'); const u=$('#lg-user').value.trim(); const p=$('#lg-pass').value;
     if(!u||!p){toast('Isi ID pengguna dan kata laluan.','err');return;}
@@ -777,7 +820,7 @@ async function pageGuru(v){
     <div class="tbl-wrap"><table class="data"><thead><tr>
       <th>Bil</th><th>Nama</th><th>Jawatan / Role</th><th>ID / Emel</th><th>Kelas</th><th>Status</th><th class="no-print"></th></tr></thead>
       <tbody>${rows}</tbody></table></div>
-    ${USE_FIREBASE?'<p style="color:var(--muted);font-size:12px;margin-top:10px">Nota: dalam Mod Firebase, cipta akaun log masuk melalui Firebase Authentication; rekod di sini menyimpan profil & peranan.</p>':''}`;
+    ${USE_FIREBASE?'<p style="color:var(--muted);font-size:12px;margin-top:10px">Nota: daftarkan <b>emel akaun Google</b> setiap guru di sini. Bila mereka klik "Log masuk dengan Google" guna emel yang sama, mereka terus dapat peranan & kelas yang ditetapkan. Tak perlu cipta kata laluan.</p>':''}`;
   $('#addBtn').onclick=()=>userModal(null,classes,v);
   $$('[data-edit]').forEach(b=>b.onclick=()=>userModal(users.find(u=>u.id===b.dataset.edit),classes,v));
   $$('[data-del]').forEach(b=>b.onclick=async()=>{
@@ -798,7 +841,7 @@ function userModal(u,classes,v){
       </div>
       <div class="grid-2">
         <div class="field"><label>ID Pengguna</label><input id="u-user" value="${esc(u.username||'')}"></div>
-        <div class="field"><label>Emel</label><input id="u-email" value="${esc(u.email||'')}"></div>
+        <div class="field"><label>Emel ${USE_FIREBASE?'(emel akaun Google)':''}</label><input id="u-email" value="${esc(u.email||'')}" placeholder="${USE_FIREBASE?'nama@gmail.com':''}"></div>
       </div>
       <div class="grid-2">
         <div class="field"><label>No. Telefon</label><input id="u-tel" value="${esc(u.tel||'')}"></div>
@@ -812,8 +855,10 @@ function userModal(u,classes,v){
       <button class="btn btn-primary" id="u-save">Simpan</button></div>`);
   $('#u-save').onclick=async()=>{
     const nama=$('#u-nama').value.trim(); if(!nama){toast('Nama wajib','err');return;}
+    const email=$('#u-email').value.trim().toLowerCase();
+    if(USE_FIREBASE && !email){toast('Emel akaun Google wajib diisi — ia digunakan untuk log masuk.','err');return;}
     const obj={...(isEdit?{id:u.id}:{}),nama,role:$('#u-role').value,kelasId:$('#u-kelas').value||null,
-      username:$('#u-user').value.trim(),email:$('#u-email').value.trim(),tel:$('#u-tel').value.trim(),
+      username:$('#u-user').value.trim(),email,tel:$('#u-tel').value.trim(),
       aktif:$('#u-aktif').value==='1'};
     if(!USE_FIREBASE)obj.password=$('#u-pass').value;
     await DB.saveUser(obj); closeModal(); toast('Pengguna disimpan','ok'); pageGuru(v);
@@ -864,17 +909,20 @@ function emptyState(msg){return `<div class="empty">${IC.empty}<div>${esc(msg)}<
 --------------------------------------------------------- */
 window.closeModal=closeModal;
 (async function init(){
-  // Firebase auth state (jika ada)
+  // Firebase: tangani hasil redirect Google (jika popup disekat tadi)
+  if(USE_FIREBASE){
+    try{
+      const rr=await fbAuth.getRedirectResult();
+      if(rr && rr.user){ await resolveProfile(rr.user); enterApp(); return; }
+    }catch(e){ toast(e.message,'err'); }
+  }
+  if(restoreSession()){ enterApp(); return; }
   if(USE_FIREBASE){
     fbAuth.onAuthStateChanged(async user=>{
-      if(user && !CURRENT){
-        const prof=await fbDB.collection('users').where('email','==',user.email).limit(1).get();
-        CURRENT=prof.empty?{id:user.uid,nama:user.email,role:'Guru Kelas',kelasId:null}:{id:prof.docs[0].id,...prof.docs[0].data()};
-        enterApp();
-      }
+      if(user && !CURRENT){ try{ await resolveProfile(user); enterApp(); }catch(e){ renderAuth(); } }
     });
   }
-  if(restoreSession()) enterApp(); else renderAuth();
+  renderAuth();
 
   // PWA service worker
   if('serviceWorker' in navigator){
