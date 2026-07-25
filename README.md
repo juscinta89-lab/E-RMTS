@@ -42,35 +42,27 @@ mod tahun persekolahan berbilang sesi. Semua ni boleh saya sambung bila-bila.
 
 1. Pergi ke <https://console.firebase.google.com> → **Add project** (cth: `rmt-sk-belukar`).
 2. **Build → Authentication → Get started → Sign-in method** → **Add new provider**:
-   - **Google** → Enable → pilih "Project support email" → **Save** *(ini untuk log masuk guna Google ID)*.
-   - (Pilihan) **Email/Password** → Enable → **Save** *(kalau ada guru tanpa akaun Google)*.
+   - **Email/Password** → Enable → **Save** *(paling mudah — tiada OAuth, guna menu Daftar dalam app)*.
+   - (Pilihan) **Google** → Enable → pilih support email → Save *(kalau nak butang Google juga)*.
 3. **Build → Firestore Database → Create database** → mula dalam *production mode*.
 4. **Project settings (⚙️) → General → Your apps → Web (`</>`)** → daftar app →
    salin objek `firebaseConfig`.
 5. Buka `js/firebase-config.js` → gantikan semua nilai `GANTIKAN_...` dengan config anda.
 6. **Firestore → Rules** → tampal kandungan fail `firestore.rules` → **Publish**.
 
-### Cipta admin pertama (guna Google ID)
-Peranan/kredensial dipadan ikut **emel**. ID dokumen dalam koleksi `users` = emel pengguna,
-supaya serasi dengan Security Rules. Untuk admin pertama, daftar emel Google anda secara manual:
+### Daftar admin pertama (terus dari app — tiada Firestore manual)
+Sekarang ada menu **Daftar Akaun** dalam aplikasi:
 
-1. **Firestore → Start collection** → Collection ID: `users`.
-2. **Document ID** = emel Google anda sendiri (cth: `guru.besar@gmail.com`).
-3. Tambah medan:
-   - `nama` (string) = nama anda
-   - `role` (string) = `Administrator`
-   - `email` (string) = emel yang sama
-   - `aktif` (boolean) = `true`
-4. Buka aplikasi → **Log masuk dengan Google** → pilih akaun Google tersebut.
-   Anda terus masuk sebagai Administrator.
-5. Selepas itu, tambah guru lain terus dari aplikasi (**Guru & Pengguna**) —
-   cukup isi **emel akaun Google** mereka + peranan + kelas. Bila mereka log masuk
-   Google guna emel sama, mereka automatik dapat akses. Tiada kata laluan diperlukan.
+1. Buka aplikasi → di skrin log masuk, klik **Daftar Akaun Baharu**.
+2. Isi nama, emel, kata laluan (minimum 6 aksara) → **Daftar Akaun**.
+3. **Pendaftar pertama automatik menjadi Administrator.** Terus masuk ke app.
+4. Guru/pengguna lain boleh:
+   - daftar sendiri melalui menu **Daftar Akaun** (mereka mula sebagai *Guru Kelas*), atau
+   - didaftar oleh admin di modul **Guru & Pengguna**.
+   Admin kemudian tetapkan peranan & kelas mereka di modul **Guru & Pengguna**.
 
-> **PENTING (domain dibenarkan):** selepas deploy ke GitHub Pages, pergi ke
-> **Authentication → Settings → Authorized domains → Add domain** dan masukkan
-> `USERNAME.github.io`. Untuk uji secara lokal, tambah juga `localhost`.
-> Tanpa ini, log masuk Google akan gagal walau config betul.
+> Tak perlu lagi buat dokumen `users` secara manual di Firestore Console.
+> App yang uruskan semua itu automatik.
 
 ---
 

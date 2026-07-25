@@ -246,47 +246,119 @@ async function doLogout(){
   location.hash=''; renderAuth();
 }
 
+// Terjemah kod ralat Firebase ke Bahasa Malaysia (bantu diagnosis)
+function authErr(e){
+  const m={
+    'auth/email-already-in-use':'Emel ini sudah didaftarkan. Sila Log Masuk.',
+    'auth/invalid-email':'Format emel tidak sah.',
+    'auth/weak-password':'Kata laluan terlalu lemah (minimum 6 aksara).',
+    'auth/wrong-password':'Kata laluan salah.',
+    'auth/user-not-found':'Akaun tidak dijumpai. Sila Daftar dahulu.',
+    'auth/invalid-credential':'Emel atau kata laluan salah.',
+    'auth/invalid-login-credentials':'Emel atau kata laluan salah.',
+    'auth/operation-not-allowed':'Kaedah Emel/Kata Laluan belum diaktifkan di Firebase Console (Authentication → Sign-in method).',
+    'auth/unauthorized-domain':'Domain ini belum dibenarkan (Authentication → Settings → Authorized domains).',
+    'auth/network-request-failed':'Masalah rangkaian. Semak sambungan internet.',
+    'permission-denied':'Akses ditolak. Pastikan firestore.rules sudah di-Publish.'
+  };
+  return (e&&(m[e.code]||e.message))||'Ralat tidak diketahui.';
+}
+
+// Daftar akaun baharu. Pendaftar PERTAMA automatik jadi Administrator.
+async function doRegister(nama,email,pass){
+  if(USE_FIREBASE){
+    const cred=await fbAuth.createUserWithEmailAndPassword(email,pass); // auto log masuk
+    let first=true;
+    try{ first=(await fbDB.collection('users').limit(1).get()).empty; }catch(e){ first=true; }
+    const role=first?'Administrator':'Guru Kelas';
+    const data={nama,email,role,aktif:true,kelasId:null,jawatan:role};
+    await fbDB.collection('users').doc(email).set(data);
+    CURRENT={id:email,...data};
+  }else{
+    if(DEMO.users.find(u=>u.email===email||u.username===email)) throw new Error('Emel sudah didaftarkan.');
+    const first=DEMO.users.length===0;
+    const role=first?'Administrator':'Guru Kelas';
+    const u={id:uid(),nama,username:email,email,password:pass,role,jawatan:role,aktif:true,kelasId:null};
+    DEMO.users.push(u); saveDemo(DEMO); CURRENT={...u};
+  }
+  sessionStorage.setItem('rmt_current',JSON.stringify(CURRENT));
+}
+
 /* ---------------------------------------------------------
-   4. Skrin LOGIN
+   4. Skrin LOG MASUK / DAFTAR
 --------------------------------------------------------- */
-function renderAuth(){
+function renderAuth(mode){
+  mode=mode||'login';
   $('#app').classList.remove('active');
   const root=$('#auth'); root.style.display='grid';
   const modeTag = USE_FIREBASE
      ? '<p style="color:var(--blue);font-size:12px">Mod Firebase aktif</p>'
-     : '<p style="color:var(--warn);font-size:12px">Mod Demo — admin/admin123 atau cikgu/cikgu123</p>';
+     : '<p style="color:var(--warn);font-size:12px">Mod Demo — data dalam pelayar ini sahaja</p>';
+  const brand=`<div class="auth-brand">
+        <div class="auth-logo">RMT</div>
+        <h1>RMT Attendance SK Belukar</h1>
+        <p>Rekod Kehadiran Murid RMT · Borang C8 KPM</p>${modeTag}</div>`;
+
+  /* ----- DAFTAR ----- */
+  if(mode==='register'){
+    root.innerHTML=`<div class="auth-card card">${brand}
+      <div class="field"><label>Nama penuh</label><input id="rg-nama" placeholder="Nama anda"></div>
+      <div class="field"><label>Emel</label><input id="rg-email" type="email" placeholder="nama@contoh.com"></div>
+      <div class="field"><label>Kata laluan</label><input id="rg-pass" type="password" placeholder="minimum 6 aksara"></div>
+      <div class="field"><label>Sahkan kata laluan</label><input id="rg-pass2" type="password"></div>
+      <button class="btn btn-primary" id="rg-btn" style="width:100%">Daftar Akaun</button>
+      <p style="color:var(--muted);font-size:12px;text-align:center;margin:12px 0 0">
+        Pendaftar pertama akan menjadi <b>Administrator</b>.</p>
+      <div class="or-sep"><span>sudah ada akaun?</span></div>
+      <button class="btn btn-ghost" id="to-login" style="width:100%">Log Masuk</button>
+    </div>`;
+    $('#to-login').onclick=()=>renderAuth('login');
+    const reg=async()=>{
+      const btn=$('#rg-btn');
+      const nama=$('#rg-nama').value.trim();
+      const email=$('#rg-email').value.trim().toLowerCase();
+      const p1=$('#rg-pass').value, p2=$('#rg-pass2').value;
+      if(!nama||!email||!p1){toast('Sila isi semua ruang.','err');return;}
+      if(p1.length<6){toast('Kata laluan minimum 6 aksara.','err');return;}
+      if(p1!==p2){toast('Kata laluan tidak sepadan.','err');return;}
+      btn.disabled=true; btn.innerHTML='<span class="spinner"></span>';
+      try{ await doRegister(nama,email,p1); toast('Akaun berjaya didaftar!','ok'); enterApp(); }
+      catch(e){ toast(authErr(e),'err'); btn.disabled=false; btn.textContent='Daftar Akaun'; }
+    };
+    $('#rg-btn').onclick=reg;
+    $('#rg-pass2').addEventListener('keydown',e=>{if(e.key==='Enter')reg();});
+    return;
+  }
+
+  /* ----- LOG MASUK ----- */
   const googleG = '<svg width="18" height="18" viewBox="0 0 48 48"><path fill="#4285F4" d="M45.1 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h11.8c-.5 2.7-2 5-4.4 6.6v5.5h7.1c4.2-3.8 6.6-9.5 6.6-16.1z"/><path fill="#34A853" d="M24 46c6 0 11-2 14.6-5.4l-7.1-5.5c-2 1.3-4.5 2.1-7.5 2.1-5.8 0-10.6-3.9-12.4-9.1H4.3v5.7C7.9 41.1 15.4 46 24 46z"/><path fill="#FBBC05" d="M11.6 28.1c-.5-1.3-.7-2.7-.7-4.1s.3-2.8.7-4.1v-5.7H4.3C2.8 17.1 2 20.4 2 24s.8 6.9 2.3 9.8l7.3-5.7z"/><path fill="#EA4335" d="M24 10.8c3.3 0 6.2 1.1 8.5 3.3l6.3-6.3C35 4.1 30 2 24 2 15.4 2 7.9 6.9 4.3 14.2l7.3 5.7c1.8-5.2 6.6-9.1 12.4-9.1z"/></svg>';
   const googleBlock = USE_FIREBASE ? `
       <button class="btn btn-google" id="lg-google">${googleG} Log masuk dengan Google</button>
       <div class="or-sep"><span>atau guna emel &amp; kata laluan</span></div>` : '';
-  root.innerHTML=`
-    <div class="auth-card card">
-      <div class="auth-brand">
-        <div class="auth-logo">RMT</div>
-        <h1>RMT Attendance SK Belukar</h1>
-        <p>Rekod Kehadiran Murid RMT · Borang C8 KPM</p>
-        ${modeTag}
-      </div>
+  root.innerHTML=`<div class="auth-card card">${brand}
       ${googleBlock}
-      <div class="field"><label>ID Pengguna / Emel</label>
-        <input id="lg-user" autocomplete="username" placeholder="admin"></div>
+      <div class="field"><label>${USE_FIREBASE?'Emel':'ID Pengguna'}</label>
+        <input id="lg-user" autocomplete="username" placeholder="${USE_FIREBASE?'nama@contoh.com':'admin'}"></div>
       <div class="field"><label>Kata Laluan</label>
         <input id="lg-pass" type="password" autocomplete="current-password" placeholder="••••••••"></div>
       <button class="btn btn-primary" id="lg-btn" style="width:100%">Log Masuk</button>
+      <div class="or-sep"><span>belum ada akaun?</span></div>
+      <button class="btn btn-ghost" id="to-register" style="width:100%">Daftar Akaun Baharu</button>
     </div>`;
+  $('#to-register').onclick=()=>renderAuth('register');
   if(USE_FIREBASE){
     $('#lg-google').onclick=async()=>{
       const gb=$('#lg-google'); gb.disabled=true; gb.innerHTML='<span class="spinner dark"></span>';
       try{ await doGoogleLogin(); if(CURRENT) enterApp(); }
-      catch(e){ toast(e.message||'Log masuk Google gagal.','err'); gb.disabled=false; gb.innerHTML=`${googleG} Log masuk dengan Google`; }
+      catch(e){ toast(authErr(e),'err'); gb.disabled=false; gb.innerHTML=`${googleG} Log masuk dengan Google`; }
     };
   }
   const submit=async()=>{
     const btn=$('#lg-btn'); const u=$('#lg-user').value.trim(); const p=$('#lg-pass').value;
-    if(!u||!p){toast('Isi ID pengguna dan kata laluan.','err');return;}
+    if(!u||!p){toast('Isi emel dan kata laluan.','err');return;}
     btn.disabled=true; btn.innerHTML='<span class="spinner"></span>';
     try{ await doLogin(u,p); enterApp(); }
-    catch(e){ toast(e.message||'Log masuk gagal.','err'); btn.disabled=false; btn.textContent='Log Masuk'; }
+    catch(e){ toast(authErr(e),'err'); btn.disabled=false; btn.textContent='Log Masuk'; }
   };
   $('#lg-btn').onclick=submit;
   $('#lg-pass').addEventListener('keydown',e=>{if(e.key==='Enter')submit();});

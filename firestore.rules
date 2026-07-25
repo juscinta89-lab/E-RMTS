@@ -21,10 +21,12 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // users — admin sahaja urus; pengguna boleh baca profil sendiri
-    match /users/{uid} {
-      allow read:  if isSignedIn();
-      allow write: if isAdmin();
+    // users — ID dokumen = emel. Pengguna boleh cipta/kemas profil SENDIRI (untuk pendaftaran);
+    // admin boleh urus semua.
+    match /users/{email} {
+      allow read:   if isSignedIn();
+      allow create: if isSignedIn() && request.auth.token.email == email;
+      allow update, delete: if isAdmin() || request.auth.token.email == email;
     }
 
     // classes & students — baca oleh pengguna log masuk; tulis oleh admin
