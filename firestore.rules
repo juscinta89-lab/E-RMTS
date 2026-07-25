@@ -1,0 +1,55 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Fungsi bantuan
+    function isSignedIn() { return request.auth != null; }
+
+    // Profil pengguna: cari role ikut emel log masuk
+    function profile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+    function isAdmin() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && profile().data.role in ['Administrator','Guru Besar','PK HEM'];
+    }
+
+    // settings & profil sekolah — semua boleh baca, admin sahaja tulis
+    match /settings/{doc} {
+      allow read:  if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // users — admin sahaja urus; pengguna boleh baca profil sendiri
+    match /users/{uid} {
+      allow read:  if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // classes & students — baca oleh pengguna log masuk; tulis oleh admin
+    match /classes/{id} {
+      allow read:  if isSignedIn();
+      allow write: if isAdmin();
+    }
+    match /students/{id} {
+      allow read:  if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // attendance — guru & admin boleh baca/tulis (kawalan kelas dibuat di aplikasi)
+    match /attendance/{id} {
+      allow read, write: if isSignedIn();
+    }
+
+    // holidays & activity_logs
+    match /holidays/{id} {
+      allow read:  if isSignedIn();
+      allow write: if isAdmin();
+    }
+    match /activity_logs/{id} {
+      allow read:  if isAdmin();
+      allow create: if isSignedIn();
+    }
+  }
+}

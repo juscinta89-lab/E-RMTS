@@ -1,0 +1,247 @@
+/* =========================================================
+   RMT Attendance SK Belukar — Tema KPM (Hijau/Putih/Biru)
+   Material-inspired, mobile-first, responsive
+   ========================================================= */
+
+:root{
+  /* Palet KPM */
+  --green:      #0B7A3B;   /* hijau KPM utama   */
+  --green-dark: #075C2C;
+  --green-soft: #E6F4EC;
+  --blue:       #1565C0;   /* biru aksen        */
+  --blue-soft:  #E3F0FB;
+  --ink:        #1B2430;
+  --muted:      #5B6675;
+  --line:       #DCE2E8;
+  --bg:         #F5F7F9;
+  --card:       #FFFFFF;
+  --danger:     #C62828;
+  --danger-soft:#FBE9E9;
+  --warn:       #E67E00;
+  --ok:         #1B8E3C;
+  --weekend:    #ECEFF1;   /* kelabu hujung minggu */
+  --holiday:    #FFF3E0;   /* cuti umum            */
+  --shadow:     0 1px 2px rgba(16,24,32,.06), 0 6px 20px rgba(16,24,32,.06);
+  --radius:     14px;
+  --radius-sm:  10px;
+  --header-h:   58px;
+}
+
+[data-theme="dark"]{
+  --green:#2FB56A; --green-dark:#1E7E48; --green-soft:#12321F;
+  --blue:#5AA6F0; --blue-soft:#132538;
+  --ink:#E8EDF2; --muted:#9AA6B2; --line:#2A333D;
+  --bg:#0E1319; --card:#161C24;
+  --weekend:#1B222B; --holiday:#2A2313;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+}
+
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  font-family:"Segoe UI",Roboto,system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
+  background:var(--bg); color:var(--ink);
+  -webkit-font-smoothing:antialiased; font-size:15px; line-height:1.45;
+}
+a{color:var(--blue);text-decoration:none}
+button{font-family:inherit}
+
+/* ---------- Utiliti butang ---------- */
+.btn{
+  display:inline-flex;align-items:center;gap:8px;justify-content:center;
+  border:0;border-radius:var(--radius-sm);padding:10px 16px;cursor:pointer;
+  font-weight:600;font-size:14px;transition:.15s;background:var(--green-soft);color:var(--green-dark);
+}
+.btn:hover{filter:brightness(.97)}
+.btn:active{transform:translateY(1px)}
+.btn-primary{background:var(--green);color:#fff}
+.btn-blue{background:var(--blue);color:#fff}
+.btn-danger{background:var(--danger-soft);color:var(--danger)}
+.btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--line)}
+.btn-sm{padding:6px 12px;font-size:13px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.icon-btn{background:transparent;border:0;color:var(--muted);cursor:pointer;
+  padding:8px;border-radius:50%;display:inline-flex;line-height:0}
+.icon-btn:hover{background:rgba(0,0,0,.06)}
+
+/* ---------- Input ---------- */
+.field{margin-bottom:14px}
+.field label{display:block;font-size:13px;font-weight:600;color:var(--muted);margin-bottom:6px}
+input,select,textarea{
+  width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:var(--radius-sm);
+  background:var(--card);color:var(--ink);font-size:15px;outline:none;transition:.15s;
+}
+input:focus,select:focus,textarea:focus{border-color:var(--green);box-shadow:0 0 0 3px var(--green-soft)}
+
+/* ---------- Kad ---------- */
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);padding:18px}
+
+/* =========================================================
+   LOGIN
+   ========================================================= */
+.auth-wrap{min-height:100vh;display:grid;place-items:center;padding:20px;
+  background:
+    radial-gradient(1200px 500px at 80% -10%, var(--green-soft), transparent),
+    radial-gradient(1000px 500px at -10% 110%, var(--blue-soft), transparent),
+    var(--bg);}
+.auth-card{width:100%;max-width:400px}
+.auth-brand{display:flex;flex-direction:column;align-items:center;gap:10px;margin-bottom:22px}
+.auth-logo{width:64px;height:64px;border-radius:16px;background:var(--green);
+  display:grid;place-items:center;color:#fff;font-weight:800;font-size:22px;box-shadow:var(--shadow)}
+.auth-brand h1{font-size:19px;margin:0;text-align:center}
+.auth-brand p{margin:0;color:var(--muted);font-size:13px}
+
+/* =========================================================
+   RANGKA APLIKASI (App shell)
+   ========================================================= */
+.app{display:none;min-height:100vh}
+.app.active{display:block}
+
+.topbar{
+  position:sticky;top:0;z-index:40;height:var(--header-h);
+  background:var(--green);color:#fff;display:flex;align-items:center;gap:12px;
+  padding:0 14px;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+.topbar .brand{font-weight:700;font-size:16px;display:flex;align-items:center;gap:10px}
+.topbar .brand .logo{width:30px;height:30px;border-radius:8px;background:rgba(255,255,255,.18);
+  display:grid;place-items:center;font-weight:800;font-size:13px}
+.topbar .spacer{flex:1}
+.topbar .icon-btn{color:#fff}
+.topbar .icon-btn:hover{background:rgba(255,255,255,.15)}
+.user-chip{display:flex;align-items:center;gap:8px;font-size:13px;
+  background:rgba(255,255,255,.14);padding:5px 10px;border-radius:999px}
+.user-chip .role{opacity:.85;font-size:11px}
+
+.layout{display:grid;grid-template-columns:230px 1fr;min-height:calc(100vh - var(--header-h))}
+.sidebar{background:var(--card);border-right:1px solid var(--line);padding:12px 10px}
+.nav-item{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:var(--radius-sm);
+  color:var(--muted);cursor:pointer;font-weight:600;font-size:14px;margin-bottom:2px}
+.nav-item svg{width:20px;height:20px;flex:none}
+.nav-item:hover{background:var(--green-soft);color:var(--green-dark)}
+.nav-item.active{background:var(--green);color:#fff}
+.nav-sep{height:1px;background:var(--line);margin:10px 6px}
+.content{padding:22px;overflow-x:auto}
+
+.page-head{display:flex;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap}
+.page-head h2{margin:0;font-size:20px}
+.page-head .spacer{flex:1}
+
+/* ---------- Dashboard stat cards ---------- */
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px;margin-bottom:20px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  padding:16px;box-shadow:var(--shadow);position:relative;overflow:hidden}
+.stat .ico{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;margin-bottom:10px}
+.stat .val{font-size:28px;font-weight:800;line-height:1}
+.stat .lbl{color:var(--muted);font-size:13px;margin-top:4px}
+.stat.g .ico{background:var(--green-soft);color:var(--green)}
+.stat.b .ico{background:var(--blue-soft);color:var(--blue)}
+.stat.o .ico{background:#FFF3E0;color:var(--warn)}
+.stat.r .ico{background:var(--danger-soft);color:var(--danger)}
+
+/* ---------- Jadual biasa ---------- */
+.tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius);background:var(--card)}
+table.data{width:100%;border-collapse:collapse;font-size:14px}
+table.data th,table.data td{padding:11px 12px;text-align:left;border-bottom:1px solid var(--line)}
+table.data th{background:var(--green-soft);color:var(--green-dark);font-weight:700;position:sticky;top:0}
+table.data tr:hover td{background:rgba(0,0,0,.02)}
+.badge{display:inline-block;padding:3px 9px;border-radius:999px;font-size:12px;font-weight:700}
+.badge.ok{background:var(--green-soft);color:var(--green-dark)}
+.badge.off{background:var(--danger-soft);color:var(--danger)}
+.badge.b{background:var(--blue-soft);color:var(--blue)}
+
+/* =========================================================
+   BORANG C8 — grid kehadiran
+   ========================================================= */
+.c8-toolbar{display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin-bottom:14px}
+.c8-toolbar .field{margin:0;min-width:150px}
+.c8-legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin:10px 2px 0}
+.c8-legend span{display:inline-flex;align-items:center;gap:6px}
+.c8-legend i{width:14px;height:14px;border-radius:3px;display:inline-block;border:1px solid var(--line)}
+
+.c8-scroll{overflow:auto;border:2px solid var(--green-dark);border-radius:8px;background:var(--card)}
+table.c8{border-collapse:collapse;font-size:12px;min-width:1100px;width:100%}
+table.c8 th,table.c8 td{border:1px solid #9aa4ad;text-align:center;padding:0}
+table.c8 thead th{background:#D9DEE2;color:#1B2430;font-weight:700;padding:4px 3px;
+  position:sticky;top:0;z-index:5}
+[data-theme="dark"] table.c8 thead th{background:#222b34;color:#e8edf2}
+.c8-title{font-size:15px;font-weight:800;letter-spacing:.5px;background:#C9D2D8 !important;padding:8px !important}
+[data-theme="dark"] .c8-title{background:#2a333d !important}
+
+.c8 .col-bil{width:34px}
+.c8 .col-nama{min-width:190px;text-align:left !important;padding:0 8px !important}
+.c8 .col-thn{width:34px}
+.c8 .col-jan{width:30px}
+.c8 .col-day{width:26px}
+.c8 .col-tot{width:44px;background:var(--blue-soft)}
+.c8 .col-abs{width:56px}
+
+.vert{writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap;letter-spacing:1px}
+
+.c8 tbody td.name{text-align:left;padding:6px 8px !important;font-weight:600;white-space:nowrap}
+.c8 tbody td.day{cursor:pointer;user-select:none;height:30px;font-weight:800;font-size:13px}
+.c8 tbody td.day:hover{outline:2px solid var(--green);outline-offset:-2px}
+.c8 td.we{background:var(--weekend)}          /* hujung minggu */
+.c8 td.hol{background:var(--holiday)}          /* cuti umum      */
+.c8 td.present{color:var(--ok)}
+.c8 td.absent{color:var(--danger)}
+.c8 td.calc{background:var(--blue-soft);font-weight:800;color:var(--blue)}
+.c8 tfoot td{background:var(--green-soft);font-weight:800;color:var(--green-dark);
+  text-align:left;padding:6px 8px !important}
+.c8-save-tag{font-size:12px;color:var(--ok);display:inline-flex;align-items:center;gap:6px}
+
+/* =========================================================
+   MODAL
+   ========================================================= */
+.modal-back{position:fixed;inset:0;background:rgba(16,24,32,.5);display:none;
+  place-items:center;z-index:80;padding:16px}
+.modal-back.show{display:grid}
+.modal{width:100%;max-width:520px;background:var(--card);border-radius:var(--radius);
+  box-shadow:var(--shadow);max-height:90vh;overflow:auto}
+.modal-head{display:flex;align-items:center;padding:16px 18px;border-bottom:1px solid var(--line)}
+.modal-head h3{margin:0;font-size:17px}
+.modal-body{padding:18px}
+.modal-foot{padding:14px 18px;border-top:1px solid var(--line);display:flex;gap:10px;justify-content:flex-end}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
+
+/* ---------- Toast ---------- */
+#toasts{position:fixed;right:16px;bottom:16px;z-index:120;display:flex;flex-direction:column;gap:10px}
+.toast{background:var(--ink);color:#fff;padding:12px 16px;border-radius:10px;font-size:14px;
+  box-shadow:var(--shadow);display:flex;align-items:center;gap:10px;animation:slideUp .25s;max-width:340px}
+.toast.ok{background:var(--ok)} .toast.err{background:var(--danger)} .toast.info{background:var(--blue)}
+@keyframes slideUp{from{transform:translateY(12px);opacity:0}to{transform:none;opacity:1}}
+
+/* ---------- Spinner ---------- */
+.spinner{width:22px;height:22px;border:3px solid rgba(255,255,255,.4);border-top-color:#fff;
+  border-radius:50%;animation:spin .7s linear infinite;display:inline-block}
+.spinner.dark{border-color:var(--line);border-top-color:var(--green)}
+@keyframes spin{to{transform:rotate(360deg)}}
+.center-load{display:grid;place-items:center;padding:50px}
+
+.empty{text-align:center;color:var(--muted);padding:40px 20px}
+.empty svg{width:46px;height:46px;opacity:.4;margin-bottom:10px}
+
+/* ---------- Mobile drawer ---------- */
+.backdrop{display:none}
+@media(max-width:860px){
+  .layout{grid-template-columns:1fr}
+  .sidebar{position:fixed;top:var(--header-h);left:0;bottom:0;width:230px;z-index:60;
+    transform:translateX(-100%);transition:.22s;box-shadow:var(--shadow)}
+  .sidebar.open{transform:none}
+  .backdrop{display:block;position:fixed;inset:var(--header-h) 0 0 0;background:rgba(0,0,0,.35);z-index:55;
+    visibility:hidden;opacity:0;transition:.2s}
+  .backdrop.show{visibility:visible;opacity:1}
+  .menu-toggle{display:inline-flex !important}
+  .grid-2{grid-template-columns:1fr}
+  .content{padding:16px}
+}
+.menu-toggle{display:none}
+
+/* ---------- Cetakan ---------- */
+@media print{
+  .topbar,.sidebar,.c8-toolbar,.page-head .btn,.backdrop,#toasts,.no-print{display:none !important}
+  body{background:#fff}
+  .content{padding:0}
+  .c8-scroll{overflow:visible;border:none}
+  table.c8{font-size:9px;min-width:0;width:100%}
+  @page{size:A4 landscape;margin:8mm}
+}
