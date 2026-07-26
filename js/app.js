@@ -42,6 +42,15 @@ function toast(msg,type='info'){
   t.className='toast '+type; t.textContent=msg; w.appendChild(t);
   setTimeout(()=>{t.style.opacity='0';setTimeout(()=>t.remove(),250);},2600);
 }
+
+// Pengawal ralat global: mana-mana operasi simpan/padam yang gagal (cth ditolak
+// oleh Firestore Rules) akan papar sebab sebenar — tiada lagi kegagalan senyap.
+window.addEventListener('unhandledrejection',e=>{
+  const r=e.reason||{};
+  console.error('Operasi gagal:',r);
+  toast(typeof authErr==='function'?authErr(r):(r.message||'Operasi gagal.'),'err');
+  e.preventDefault();
+});
 function confirmDialog(msg){
   return new Promise(res=>{
     openModal(`
@@ -143,6 +152,8 @@ const DB = {
       // emel = ID dokumen (padanan log masuk Google/emel + serasi Security Rules)
       const {id,...r}=o;
       await fbDB.collection('users').doc(o.email).set(r,{merge:true});
+      // rekod lama berkunci ID lain (UID/auto-ID) → padam supaya tiada duplikat
+      if(id && id!==o.email){ try{ await fbDB.collection('users').doc(id).delete(); }catch(e){} }
       return;
     }
     if(o.id){const i=DEMO.users.findIndex(u=>u.id===o.id);DEMO.users[i]=o;}
@@ -236,6 +247,19 @@ async function resolveProfile(user){
     const data={nama:user.displayName||user.email,email:user.email,role,aktif:true,kelasId:null,jawatan:role};
     await ref.set(data);
     CURRENT={id:user.email,...data};
+  }
+  // Penyembuhan: jika sistem langsung TIADA admin (peranan terpadam/tersilap),
+  // naikkan pengguna ini supaya sistem tidak terkunci tanpa admin.
+  if(!['Administrator','Guru Besar','PK HEM'].includes(CURRENT.role)){
+    try{
+      const admins=await fbDB.collection('users')
+        .where('role','in',['Administrator','Guru Besar','PK HEM']).limit(1).get();
+      if(admins.empty){
+        await ref.set({role:'Administrator',jawatan:'Administrator'},{merge:true});
+        CURRENT.role='Administrator'; CURRENT.jawatan='Administrator';
+        toast('Tiada admin dikesan — akaun anda dinaikkan ke Administrator.','info');
+      }
+    }catch(e){}
   }
   sessionStorage.setItem('rmt_current',JSON.stringify(CURRENT));
 }

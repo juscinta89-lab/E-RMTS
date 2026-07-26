@@ -21,11 +21,13 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // users — ID dokumen = emel. Pengguna boleh cipta/kemas profil SENDIRI (untuk pendaftaran);
-    // admin boleh urus semua.
+    // users — ID dokumen = emel.
+    // - Sesiapa boleh cipta profil SENDIRI (untuk pendaftaran/log masuk Google kali pertama)
+    // - Admin (Administrator/Guru Besar/PK HEM) mempunyai KUASA PENUH: tambah, edit,
+    //   tukar peranan, dan padam mana-mana pengguna
     match /users/{email} {
       allow read:   if isSignedIn();
-      allow create: if isSignedIn() && request.auth.token.email == email;
+      allow create: if isAdmin() || (isSignedIn() && request.auth.token.email == email);
       allow update, delete: if isAdmin() || request.auth.token.email == email;
     }
 
