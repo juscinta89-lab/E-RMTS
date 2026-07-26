@@ -195,17 +195,22 @@ const DB = {
 let CURRENT=null; // {id,nama,role,kelasId,...}
 const isAdmin = ()=> CURRENT && ['Administrator','Guru Besar','PK HEM'].includes(CURRENT.role);
 
-// Padankan pengguna Firebase (Google/emel) dengan profil dalam koleksi `users`.
-// ID dokumen users = emel pengguna, jadi ia serasi dengan Security Rules.
+// Padankan pengguna Firebase dengan profil `users`. Jika belum wujud, AUTO-CIPTA
+// (cth log masuk Google kali pertama). Pendaftar pertama menjadi Administrator.
 async function resolveProfile(user){
-  const doc=await fbDB.collection('users').doc(user.email).get();
-  if(!doc.exists){
-    await fbAuth.signOut();
-    throw new Error('Emel '+user.email+' belum didaftarkan. Minta Administrator tambah emel anda di modul Guru & Pengguna.');
+  const ref=fbDB.collection('users').doc(user.email);
+  const doc=await ref.get();
+  if(doc.exists){
+    const data=doc.data();
+    if(data.aktif===false){ await fbAuth.signOut(); throw new Error('Akaun anda dinyahaktifkan. Sila hubungi Administrator.'); }
+    CURRENT={id:doc.id,...data};
+  }else{
+    let first=true; try{ first=(await fbDB.collection('users').limit(1).get()).empty; }catch(e){ first=true; }
+    const role=first?'Administrator':'Guru Kelas';
+    const data={nama:user.displayName||user.email,email:user.email,role,aktif:true,kelasId:null,jawatan:role};
+    await ref.set(data);
+    CURRENT={id:user.email,...data};
   }
-  const data=doc.data();
-  if(data.aktif===false){ await fbAuth.signOut(); throw new Error('Akaun anda dinyahaktifkan.'); }
-  CURRENT={id:doc.id,...data};
   sessionStorage.setItem('rmt_current',JSON.stringify(CURRENT));
 }
 
@@ -276,9 +281,8 @@ async function doRegister(nama,email,pass){
     CURRENT={id:email,...data};
   }else{
     if(DEMO.users.find(u=>u.email===email||u.username===email)) throw new Error('Emel sudah didaftarkan.');
-    const first=DEMO.users.length===0;
-    const role=first?'Administrator':'Guru Kelas';
-    const u={id:uid(),nama,username:email,email,password:pass,role,jawatan:role,aktif:true,kelasId:null};
+    // Mod Demo = kotak pasir tempatan; pendaftar diberi akses penuh (Administrator)
+    const u={id:uid(),nama,username:email,email,password:pass,role:'Administrator',jawatan:'Administrator',aktif:true,kelasId:null};
     DEMO.users.push(u); saveDemo(DEMO); CURRENT={...u};
   }
   sessionStorage.setItem('rmt_current',JSON.stringify(CURRENT));
@@ -617,6 +621,7 @@ async function renderC8(){
       <table class="c8">
         <thead>
           <tr><td class="c8-title" colspan="${5+nDays+3}">
+            ${school.logo?`<img src="${school.logo}" style="height:32px;vertical-align:middle;margin-right:10px">`:''}
             ${esc(school.nama)} &nbsp;·&nbsp; REKOD KEHADIRAN MURID RMT &nbsp;·&nbsp; ${bulanLabel}
             &nbsp;·&nbsp; ${esc('Tahun '+cls.tahun+' '+cls.nama)}
             <span style="float:right;font-size:11px">BORANG C8</span>
@@ -798,11 +803,13 @@ function importCSVModal(classes,v){
       <p style="margin-top:0;color:var(--muted);font-size:13px">
         Format tajuk: <code>nama,mykid,jantina,tahun,kelas</code><br>
         jantina = L atau P · kelas = padanan "Tahun X Nama" (cth: Tahun 1 Amanah).</p>
+      <button class="btn btn-sm" id="csv-dl" style="margin-bottom:14px">⬇ Muat turun template CSV</button>
       <div class="field"><label>Pilih fail CSV</label><input type="file" id="csv-file" accept=".csv"></div>
       <textarea id="csv-text" rows="6" placeholder="Atau tampal teks CSV di sini…"></textarea>
     </div>
     <div class="modal-foot"><button class="btn btn-ghost" onclick="closeModal()">Batal</button>
       <button class="btn btn-primary" id="csv-go">Import</button></div>`);
+  $('#csv-dl').onclick=()=>downloadCSV('template_murid.csv',CSV_TEMPLATE);
   $('#csv-file').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();
     r.onload=()=>{$('#csv-text').value=r.result;};r.readAsText(f);};
   $('#csv-go').onclick=async()=>{
@@ -942,9 +949,21 @@ function userModal(u,classes,v){
 --------------------------------------------------------- */
 async function pageTetapan(v){
   const s=await DB.getSchool();
+  let logoData=s.logo||'';
   v.innerHTML=`
     <div class="page-head"><h2>Tetapan Sekolah</h2></div>
     <div class="card" style="max-width:640px">
+      <div class="field"><label>Logo sekolah</label>
+        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+          <img id="s-logo-img" class="logo-preview" src="${logoData||''}" style="${logoData?'':'display:none'}">
+          <div>
+            <input type="file" id="s-logo-file" accept="image/*" style="max-width:240px">
+            <div style="margin-top:8px">
+              <button class="btn btn-sm btn-danger" id="s-logo-rm" style="${logoData?'':'display:none'}">Buang logo</button>
+            </div>
+            <div style="color:var(--muted);font-size:12px;margin-top:6px">PNG/JPG. Dipaparkan pada borang C8.</div>
+          </div>
+        </div></div>
       <div class="field"><label>Nama sekolah</label><input id="s-nama" value="${esc(s.nama||'')}"></div>
       <div class="grid-2">
         <div class="field"><label>Kod sekolah</label><input id="s-kod" value="${esc(s.kod||'')}"></div>
@@ -963,10 +982,19 @@ async function pageTetapan(v){
       <div class="field"><label>Nama Penyelaras RMT</label><input id="s-peny" value="${esc(s.penyelaras||'')}"></div>
       <button class="btn btn-primary" id="s-save">Simpan Tetapan</button>
     </div>`;
+
+  $('#s-logo-file').onchange=e=>{ const f=e.target.files[0]; if(!f)return;
+    downscaleImage(f,220,dataURL=>{ logoData=dataURL;
+      const img=$('#s-logo-img'); img.src=dataURL; img.style.display='';
+      $('#s-logo-rm').style.display=''; toast('Logo dipilih — tekan Simpan Tetapan','info'); });
+  };
+  $('#s-logo-rm').onclick=()=>{ logoData=''; $('#s-logo-img').style.display='none';
+    $('#s-logo-file').value=''; $('#s-logo-rm').style.display='none'; };
+
   $('#s-save').onclick=async()=>{
     await DB.saveSchool({nama:$('#s-nama').value,kod:$('#s-kod').value,daerah:$('#s-daerah').value,
       negeri:$('#s-negeri').value,tel:$('#s-tel').value,alamat:$('#s-alamat').value,email:$('#s-email').value,
-      gb:$('#s-gb').value,pkhem:$('#s-pkhem').value,penyelaras:$('#s-peny').value});
+      gb:$('#s-gb').value,pkhem:$('#s-pkhem').value,penyelaras:$('#s-peny').value,logo:logoData});
     toast('Tetapan disimpan','ok');
   };
 }
@@ -975,6 +1003,25 @@ async function pageTetapan(v){
    Helper
 --------------------------------------------------------- */
 function emptyState(msg){return `<div class="empty">${IC.empty}<div>${esc(msg)}</div></div>`;}
+
+// Kecilkan imej (logo) ke saiz max px, pulangkan dataURL PNG (jimat saiz simpanan)
+function downscaleImage(file,max,cb){
+  const rd=new FileReader();
+  rd.onload=()=>{ const img=new Image();
+    img.onload=()=>{ let w=img.width,h=img.height; const scale=Math.min(1,max/Math.max(w,h));
+      const c=document.createElement('canvas'); c.width=Math.round(w*scale); c.height=Math.round(h*scale);
+      c.getContext('2d').drawImage(img,0,0,c.width,c.height); cb(c.toDataURL('image/png')); };
+    img.onerror=()=>toast('Fail imej tidak sah','err'); img.src=rd.result; };
+  rd.readAsDataURL(file);
+}
+
+// Muat turun fail CSV dari pelayar
+function downloadCSV(filename,content){
+  const blob=new Blob(['\ufeff'+content],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob); const a=document.createElement('a');
+  a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+}
+const CSV_TEMPLATE='nama,mykid,jantina,tahun,kelas\nAhmad Bin Ali,180101015511,L,1,Tahun 1 Amanah\nSiti Binti Kamal,180203105522,P,1,Tahun 1 Amanah\n';
 
 /* ---------------------------------------------------------
    13. Mula

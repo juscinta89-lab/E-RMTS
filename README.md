@@ -57,9 +57,14 @@ Sekarang ada menu **Daftar Akaun** dalam aplikasi:
 2. Isi nama, emel, kata laluan (minimum 6 aksara) → **Daftar Akaun**.
 3. **Pendaftar pertama automatik menjadi Administrator.** Terus masuk ke app.
 4. Guru/pengguna lain boleh:
-   - daftar sendiri melalui menu **Daftar Akaun** (mereka mula sebagai *Guru Kelas*), atau
+   - daftar sendiri melalui menu **Daftar Akaun** (emel + kata laluan), atau
+   - **Log masuk dengan Google** terus — kali pertama akan auto-daftar (tak perlu admin masukkan emel dahulu), atau
    - didaftar oleh admin di modul **Guru & Pengguna**.
    Admin kemudian tetapkan peranan & kelas mereka di modul **Guru & Pengguna**.
+
+**Tambah murid secara pukal (CSV):** modul **Maklumat Murid → Import CSV → Muat turun template CSV**.
+Cikgu isi nama murid dalam fail itu, simpan, dan upload semula. Logo sekolah pula boleh dimuat
+naik di **Tetapan Sekolah** dan akan dipaparkan pada borang C8.
 
 > Tak perlu lagi buat dokumen `users` secara manual di Firestore Console.
 > App yang uruskan semua itu automatik.

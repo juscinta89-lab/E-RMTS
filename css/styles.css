@@ -113,7 +113,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--green);box-shadow:0 0
 .user-chip .role{opacity:.85;font-size:11px}
 
 .layout{display:grid;grid-template-columns:230px 1fr;min-height:calc(100vh - var(--header-h))}
-.sidebar{background:var(--card);border-right:1px solid var(--line);padding:12px 10px}
+.sidebar{background:var(--card);border-right:1px solid var(--line);padding:12px 10px;overflow-y:auto}
 .nav-item{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:var(--radius-sm);
   color:var(--muted);cursor:pointer;font-weight:600;font-size:14px;margin-bottom:2px}
 .nav-item svg{width:20px;height:20px;flex:none}
@@ -251,3 +251,23 @@ table.c8 thead th{background:#D9DEE2;color:#1B2430;font-weight:700;padding:4px 3
 .or-sep::before,.or-sep::after{content:"";flex:1;height:1px;background:var(--line)}
 .btn-google{width:100%;border:1px solid var(--line);background:var(--card);color:var(--ink);font-weight:600}
 .btn-google:hover{background:var(--bg)}
+
+/* ---------- Baiki paparan telefon ---------- */
+.hide-sm{display:inline}
+.user-chip{max-width:46vw}
+.user-chip > span:first-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:inline-block;max-width:100%}
+.logo-preview{width:64px;height:64px;border-radius:12px;object-fit:contain;
+  border:1px solid var(--line);background:var(--bg);padding:4px}
+@media(max-width:600px){
+  .topbar{gap:8px;padding:0 10px}
+  .user-chip .role{display:none}
+  .page-head h2{font-size:18px}
+  .page-head .btn{padding:8px 12px;font-size:13px}
+  .stat .val{font-size:24px}
+}
+@media(max-width:480px){
+  .hide-sm{display:none}
+  .content{padding:12px}
+  .c8-toolbar .field{min-width:46%}
+  .stat-grid{grid-template-columns:1fr 1fr;gap:10px}
+}
