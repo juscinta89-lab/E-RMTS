@@ -127,12 +127,12 @@ input:focus,select:focus,textarea:focus{border-color:var(--green);box-shadow:0 0
 .page-head .spacer{flex:1}
 
 /* ---------- Dashboard stat cards ---------- */
-.stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px;margin-bottom:20px}
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;margin-bottom:20px}
 .stat{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
-  padding:16px;box-shadow:var(--shadow);position:relative;overflow:hidden}
-.stat .ico{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;margin-bottom:10px}
-.stat .val{font-size:28px;font-weight:800;line-height:1}
-.stat .lbl{color:var(--muted);font-size:13px;margin-top:4px}
+  padding:16px;box-shadow:var(--shadow);display:flex;align-items:center;gap:14px}
+.stat .ico{width:46px;height:46px;flex:none;border-radius:12px;display:grid;place-items:center}
+.stat .val{font-size:26px;font-weight:800;line-height:1}
+.stat .lbl{color:var(--muted);font-size:13px;margin-top:3px}
 .stat.g .ico{background:var(--green-soft);color:var(--green)}
 .stat.b .ico{background:var(--blue-soft);color:var(--blue)}
 .stat.o .ico{background:#FFF3E0;color:var(--warn)}
@@ -270,4 +270,62 @@ table.c8 thead th{background:#D9DEE2;color:#1B2430;font-weight:700;padding:4px 3
   .content{padding:12px}
   .c8-toolbar .field{min-width:46%}
   .stat-grid{grid-template-columns:1fr 1fr;gap:10px}
+}
+
+/* ---------- Dashboard padat di telefon + brand ---------- */
+.topbar .brand{white-space:nowrap}
+.topbar .brand .hide-sm{white-space:nowrap}
+@media(max-width:600px){
+  .stat-grid{grid-template-columns:1fr 1fr;gap:10px}
+  .stat{padding:12px;gap:10px}
+  .stat .ico{width:38px;height:38px}
+  .stat .ico svg{width:18px;height:18px}
+  .stat .val{font-size:20px}
+  .stat .lbl{font-size:11px}
+}
+
+/* =========================================================
+   BOTTOM NAV (telefon) — ganti sidebar pada skrin kecil
+   ========================================================= */
+.bottom-nav{display:none}
+@media(max-width:860px){
+  .sidebar,.backdrop,.menu-toggle{display:none !important}
+  .content{padding-bottom:84px}
+  .bottom-nav{
+    display:flex;position:fixed;left:0;right:0;bottom:0;z-index:70;
+    background:var(--card);border-top:1px solid var(--line);
+    box-shadow:0 -2px 12px rgba(0,0,0,.08);
+    padding:6px 4px calc(6px + env(safe-area-inset-bottom));
+    overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .bnav-item{flex:1;min-width:60px;display:flex;flex-direction:column;align-items:center;gap:3px;
+    padding:6px 2px;border-radius:10px;color:var(--muted);font-size:10px;font-weight:600;
+    cursor:pointer;text-align:center;white-space:nowrap}
+  .bnav-item svg{width:22px;height:22px}
+  .bnav-item.active{color:var(--green);background:var(--green-soft)}
+}
+/* Topbar telefon: lebih kemas */
+@media(max-width:600px){
+  .user-chip{padding:4px 10px;max-width:40vw}
+  .topbar .brand span:last-child{font-size:14px}
+}
+
+/* Senarai cuti dalam Tetapan */
+.holi-row{display:flex;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px solid var(--line);font-size:14px}
+.holi-row .dt{font-weight:700;color:var(--green-dark);min-width:100px}
+.holi-row .nm{flex:1;color:var(--ink)}
+
+/* Kad statistik lebih kompak & kemas di telefon */
+@media(max-width:860px){
+  .stat-grid{grid-template-columns:1fr 1fr;gap:10px}
+  .stat{padding:12px;display:flex;align-items:center;gap:10px}
+  .stat .ico{width:38px;height:38px;margin-bottom:0;flex:none}
+  .stat > div:not(.ico){min-width:0}
+  .stat .val{font-size:22px}
+  .stat .lbl{font-size:11px;margin-top:2px;white-space:normal}
+}
+@media(max-width:360px){ .stat-grid{grid-template-columns:1fr} }
+/* Butang dalam page-head penuh lebar di telefon kecil utk mudah ditekan */
+@media(max-width:600px){
+  .page-head{gap:8px}
+  .tbl-wrap{font-size:13px}
 }

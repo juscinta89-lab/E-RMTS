@@ -14,6 +14,7 @@ const IC = {
   teacher:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.5-6 8-6s8 2 8 6"/></svg>',
   cls:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 5h18v12H3z"/><path d="M3 21h18"/></svg>',
   gear:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.5-2.4 1a7 7 0 0 0-1.7-1L14.5 3h-5l-.3 2a7 7 0 0 0-1.7 1l-2.4-1-2 3.5L3.1 11a7 7 0 0 0 0 2l-2 1.5 2 3.5 2.4-1a7 7 0 0 0 1.7 1l.3 2h5l.3-2a7 7 0 0 0 1.7-1l2.4 1 2-3.5-2-1.5c.1-.3.1-.7.1-1z"/></svg>',
+  cal:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/></svg>',
   logout:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>',
   menu:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>',
   plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>',
@@ -73,7 +74,7 @@ if (USE_FIREBASE){
 const SEED = {
   school:{ nama:'SEKOLAH KEBANGSAAN BELUKAR', kod:'TBA1234', daerah:'Kemaman',
            negeri:'Terengganu', alamat:'24000 Kemaman, Terengganu', gb:'—', pkhem:'—',
-           penyelaras:'—', tel:'09-000 0000', email:'skbelukar@moe.edu.my' },
+           penyelaras:'—', tel:'09-000 0000', email:'skbelukar@moe.edu.my', restDays:[5,6] },
   users:[
     {id:'u1',nama:'Administrator',jawatan:'Administrator',username:'admin',password:'admin123',
      email:'admin@skb.my',tel:'0100000000',role:'Administrator',aktif:true,kelasId:null},
@@ -186,6 +187,19 @@ const DB = {
     r[studentId]=r[studentId]||{};
     if(val===null) delete r[studentId][day]; else r[studentId][day]=val;
     saveDemo(DEMO);
+  },
+  /* CUTI / KELEPASAN AM */
+  async listHolidays(){
+    if(USE_FIREBASE){const q=await fbDB.collection('holidays').get();return q.docs.map(d=>({id:d.id,...d.data()}));}
+    return [...(DEMO.holidays||[])];
+  },
+  async addHoliday(o){
+    if(USE_FIREBASE){await fbDB.collection('holidays').add(o);return;}
+    DEMO.holidays=DEMO.holidays||[]; DEMO.holidays.push({...o,id:uid()}); saveDemo(DEMO);
+  },
+  async delHoliday(id){
+    if(USE_FIREBASE){await fbDB.collection('holidays').doc(id).delete();return;}
+    DEMO.holidays=(DEMO.holidays||[]).filter(h=>h.id!==id); saveDemo(DEMO);
   }
 };
 
@@ -194,6 +208,18 @@ const DB = {
 --------------------------------------------------------- */
 let CURRENT=null; // {id,nama,role,kelasId,...}
 const isAdmin = ()=> CURRENT && ['Administrator','Guru Besar','PK HEM'].includes(CURRENT.role);
+
+// Konfigurasi kalendar global (hari cuti mingguan + cuti/kelepasan am)
+// restDays: nombor hari (0=Ahad,1=Isnin,...,6=Sabtu) yang BUKAN hari persekolahan.
+// Lalai [0,6] = Sabtu & Ahad (Kumpulan B). Kumpulan A = [5,6] (Jumaat & Sabtu).
+let APP_CFG={restDays:[0,6],holidays:[]};
+async function loadConfig(){
+  try{
+    const s=await DB.getSchool();
+    APP_CFG.restDays = Array.isArray(s.restDays)&&s.restDays.length? s.restDays : [0,6];
+    APP_CFG.holidays = await DB.listHolidays();
+  }catch(e){ /* biar lalai */ }
+}
 
 // Padankan pengguna Firebase dengan profil `users`. Jika belum wujud, AUTO-CIPTA
 // (cth log masuk Google kali pertama). Pendaftar pertama menjadi Administrator.
@@ -372,28 +398,32 @@ function renderAuth(mode){
    5. Rangka aplikasi + navigasi
 --------------------------------------------------------- */
 const NAV=[
-  {id:'dashboard',label:'Papan Pemuka',icon:'dash',all:true},
-  {id:'kehadiran',label:'Kehadiran (C8)',icon:'check',all:true},
-  {id:'murid',label:'Maklumat Murid',icon:'student',all:true},
-  {id:'kelas',label:'Maklumat Kelas',icon:'cls',admin:true},
-  {id:'guru',label:'Guru & Pengguna',icon:'teacher',admin:true},
-  {id:'tetapan',label:'Tetapan Sekolah',icon:'gear',admin:true},
+  {id:'dashboard',label:'Dashboard',short:'Utama',icon:'dash',all:true},
+  {id:'kehadiran',label:'Kehadiran (C8)',short:'Kehadiran',icon:'check',all:true},
+  {id:'murid',label:'Maklumat Murid',short:'Murid',icon:'student',all:true},
+  {id:'kelas',label:'Maklumat Kelas',short:'Kelas',icon:'cls',admin:true},
+  {id:'guru',label:'Guru & Pengguna',short:'Guru',icon:'teacher',admin:true},
+  {id:'kalendar',label:'Hari & Cuti',short:'Cuti',icon:'cal',admin:true},
+  {id:'tetapan',label:'Tetapan Sekolah',short:'Tetapan',icon:'gear',admin:true},
 ];
 
-function enterApp(){
+async function enterApp(){
   $('#auth').style.display='none';
   $('#app').classList.add('active');
   buildShell();
+  await loadConfig();
   if(!location.hash) location.hash='#dashboard';
   route();
 }
 
 function buildShell(){
-  const items=NAV.filter(n=>n.all||(n.admin&&isAdmin())).map(n=>
+  const navList=NAV.filter(n=>n.all||(n.admin&&isAdmin()));
+  const items=navList.map(n=>
     `<div class="nav-item" data-nav="${n.id}">${IC[n.icon]}<span>${n.label}</span></div>`).join('');
+  const bitems=navList.map(n=>
+    `<div class="bnav-item" data-nav="${n.id}">${IC[n.icon]}<span>${n.short||n.label}</span></div>`).join('');
   $('#app').innerHTML=`
     <div class="topbar">
-      <button class="icon-btn menu-toggle" id="mtoggle">${IC.menu}</button>
       <div class="brand"><span class="logo">RMT</span><span class="hide-sm">SK Belukar</span></div>
       <div class="spacer"></div>
       <button class="icon-btn" id="darkBtn" title="Mod gelap">${IC.moon}</button>
@@ -406,20 +436,19 @@ function buildShell(){
         <div class="nav-sep"></div>
         <div class="nav-item" id="nav-logout">${IC.logout}<span>Log Keluar</span></div>
       </aside>
-      <div class="backdrop" id="backdrop"></div>
       <main class="content" id="view"></main>
-    </div>`;
+    </div>
+    <nav class="bottom-nav" id="bnav">${bitems}</nav>`;
   $('#logoutBtn').onclick=$('#nav-logout').onclick=doLogout;
   $('#darkBtn').onclick=toggleDark;
-  const sb=$('#sidebar'),bd=$('#backdrop');
-  $('#mtoggle').onclick=()=>{sb.classList.toggle('open');bd.classList.toggle('show');};
-  bd.onclick=()=>{sb.classList.remove('open');bd.classList.remove('show');};
-  $$('.nav-item[data-nav]').forEach(el=>el.onclick=()=>{
-    location.hash='#'+el.dataset.nav; sb.classList.remove('open');bd.classList.remove('show');
+  $$('.nav-item[data-nav], .bnav-item[data-nav]').forEach(el=>el.onclick=()=>{
+    location.hash='#'+el.dataset.nav;
   });
 }
 
-function setActiveNav(id){$$('.nav-item[data-nav]').forEach(e=>e.classList.toggle('active',e.dataset.nav===id));}
+function setActiveNav(id){
+  $$('.nav-item[data-nav], .bnav-item[data-nav]').forEach(e=>e.classList.toggle('active',e.dataset.nav===id));
+}
 
 function route(){
   if(!CURRENT){renderAuth();return;}
@@ -428,7 +457,7 @@ function route(){
   const v=$('#view'); if(!v)return;
   v.innerHTML='<div class="center-load"><span class="spinner dark"></span></div>';
   ({dashboard:pageDashboard,kehadiran:pageKehadiran,murid:pageMurid,
-    kelas:pageKelas,guru:pageGuru,tetapan:pageTetapan}[page]||pageDashboard)(v);
+    kelas:pageKelas,guru:pageGuru,kalendar:pageKalendar,tetapan:pageTetapan}[page]||pageDashboard)(v);
 }
 window.addEventListener('hashchange',route);
 
@@ -460,7 +489,7 @@ async function pageDashboard(v){
   const monthly=await buildMonthlyChart(classes,rmtAktif,y);
 
   v.innerHTML=`
-    <div class="page-head"><h2>Papan Pemuka</h2><div class="spacer"></div>
+    <div class="page-head"><h2>Dashboard</h2><div class="spacer"></div>
       <span class="badge b">${esc(school.nama)}</span></div>
     <div class="stat-grid">
       ${stat('g',IC.student,rmtAktif.length,'Murid RMT aktif')}
@@ -478,7 +507,7 @@ async function pageDashboard(v){
 }
 function stat(cls,ico,val,lbl){
   return `<div class="stat ${cls}"><div class="ico">${ico}</div>
-    <div class="val">${val}</div><div class="lbl">${lbl}</div></div>`;
+    <div class="txt"><div class="val">${val}</div><div class="lbl">${lbl}</div></div></div>`;
 }
 async function buildMonthlyChart(classes,students,year){
   const pcts=[];
@@ -508,13 +537,16 @@ async function buildMonthlyChart(classes,students,year){
    7. Fungsi kalendar (hari sekolah / hujung minggu / cuti)
 --------------------------------------------------------- */
 function daysInMonth(y,m){return new Date(y,m+1,0).getDate();}
-function isWeekend(y,m,day){const wd=new Date(y,m,day).getDay();return wd===0||wd===6;} // Ahad/Sabtu
-function getHolidays(){ if(USE_FIREBASE)return window.__HOLIDAYS__||[]; return DEMO.holidays||[]; }
+function isWeekend(y,m,day){ return APP_CFG.restDays.includes(new Date(y,m,day).getDay()); } // hari cuti mingguan ikut tetapan
 function isHoliday(y,m,day){
   const ds=`${y}-${String(m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-  return getHolidays().some(h=>h.date===ds);
+  return (APP_CFG.holidays||[]).some(h=>h.date===ds);
 }
-function schoolDays(y,m){ // senarai hari persekolahan (bukan hujung minggu/cuti)
+function holidayName(y,m,day){
+  const ds=`${y}-${String(m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+  const h=(APP_CFG.holidays||[]).find(x=>x.date===ds); return h?h.nama:'';
+}
+function schoolDays(y,m){ // senarai hari persekolahan (bukan cuti mingguan/kelepasan)
   const out=[]; for(let d=1;d<=daysInMonth(y,m);d++){ if(!isWeekend(y,m,d)&&!isHoliday(y,m,d))out.push(d);} return out;
 }
 
@@ -549,7 +581,7 @@ async function pageKehadiran(v){
     <div class="c8-legend no-print">
       <span><i style="background:var(--card)"></i> Hadir (H/✓)</span>
       <span><i style="background:var(--card);color:var(--danger)">✕</i> Tidak hadir (X)</span>
-      <span><i style="background:var(--weekend)"></i> Hujung minggu</span>
+      <span><i style="background:var(--weekend)"></i> Cuti mingguan (ikut Kumpulan A/B)</span>
       <span><i style="background:var(--holiday)"></i> Cuti umum</span>
       <span>Klik sel untuk kitar: kosong → ✓ → ✕ → kosong (auto simpan)</span>
     </div>`;
@@ -1002,6 +1034,72 @@ async function pageTetapan(v){
 /* ---------------------------------------------------------
    Helper
 --------------------------------------------------------- */
+/* ---------------------------------------------------------
+   12b. HALAMAN: Hari Persekolahan & Cuti
+--------------------------------------------------------- */
+async function pageKalendar(v){
+  const s=await DB.getSchool();
+  let rest = Array.isArray(s.restDays)&&s.restDays.length ? [...s.restDays] : [0,6];
+  const holidays=(await DB.listHolidays()).sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+  const dnames=['Ahad','Isnin','Selasa','Rabu','Khamis','Jumaat','Sabtu'];
+  const sorted=[...rest].sort((a,b)=>a-b);
+  const preset = JSON.stringify(sorted)===JSON.stringify([5,6]) ? 'A'
+              : JSON.stringify(sorted)===JSON.stringify([0,6]) ? 'B' : 'C';
+
+  const dayToggles=dnames.map((n,i)=>`
+    <label style="display:flex;align-items:center;gap:8px;padding:9px 10px;border:1px solid var(--line);border-radius:10px;cursor:pointer">
+      <input type="checkbox" class="rd" value="${i}" ${rest.includes(i)?'checked':''} style="width:auto">
+      <span>${n}</span></label>`).join('');
+
+  const holRows=holidays.map(h=>`<tr><td>${esc(h.date)}</td><td>${esc(h.nama)}</td>
+      <td class="no-print"><button class="icon-btn" data-del="${h.id}">${IC.trash}</button></td></tr>`).join('')
+      || `<tr><td colspan="3" style="color:var(--muted);padding:14px">Belum ada cuti direkod.</td></tr>`;
+
+  v.innerHTML=`
+    <div class="page-head"><h2>Hari Persekolahan &amp; Cuti</h2></div>
+
+    <div class="card" style="max-width:640px;margin-bottom:16px">
+      <h3 style="margin:0 0 4px">Hari cuti mingguan</h3>
+      <p style="color:var(--muted);font-size:13px;margin:0 0 14px">
+        Tandakan hari yang <b>BUKAN</b> hari persekolahan. Hari tersebut jadi kelabu &amp; tak boleh ditanda dalam borang C8.</p>
+      <div class="field"><label>Pilihan pantas</label>
+        <select id="k-preset">
+          <option value="A" ${preset==='A'?'selected':''}>Kumpulan A — belajar Ahad hingga Khamis (cuti Jumaat &amp; Sabtu)</option>
+          <option value="B" ${preset==='B'?'selected':''}>Kumpulan B — belajar Isnin hingga Jumaat (cuti Sabtu &amp; Ahad)</option>
+          <option value="C" ${preset==='C'?'selected':''}>Tetapan sendiri</option>
+        </select></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(115px,1fr));gap:8px;margin:10px 0">${dayToggles}</div>
+      <button class="btn btn-primary" id="k-save-days">Simpan Hari Persekolahan</button>
+    </div>
+
+    <div class="card" style="max-width:640px">
+      <h3 style="margin:0 0 12px">Cuti / Kelepasan Am</h3>
+      <div class="grid-2">
+        <div class="field"><label>Tarikh</label><input type="date" id="k-date"></div>
+        <div class="field"><label>Nama cuti</label><input id="k-name" placeholder="cth: Hari Raya Aidilfitri"></div>
+      </div>
+      <button class="btn" id="k-add">${IC.plus} Tambah Cuti</button>
+      <div class="tbl-wrap" style="margin-top:14px"><table class="data">
+        <thead><tr><th>Tarikh</th><th>Nama</th><th class="no-print"></th></tr></thead>
+        <tbody id="k-hol">${holRows}</tbody></table></div>
+    </div>`;
+
+  const readRest=()=>[...document.querySelectorAll('.rd:checked')].map(c=>+c.value);
+  $('#k-preset').onchange=e=>{ const map={A:[5,6],B:[0,6]}; const sel=map[e.target.value];
+    if(sel) document.querySelectorAll('.rd').forEach(c=>{c.checked=sel.includes(+c.value);}); };
+  document.querySelectorAll('.rd').forEach(c=>c.onchange=()=>{$('#k-preset').value='C';});
+  $('#k-save-days').onclick=async()=>{ const rd=readRest();
+    await DB.saveSchool({restDays:rd}); APP_CFG.restDays=rd.length?rd:[0,6];
+    toast('Hari persekolahan disimpan','ok'); };
+  $('#k-add').onclick=async()=>{ const date=$('#k-date').value, nama=$('#k-name').value.trim();
+    if(!date||!nama){toast('Isi tarikh & nama cuti','err');return;}
+    await DB.addHoliday({date,nama}); APP_CFG.holidays=await DB.listHolidays();
+    toast('Cuti ditambah','ok'); pageKalendar(v); };
+  document.querySelectorAll('#k-hol [data-del]').forEach(b=>b.onclick=async()=>{
+    await DB.delHoliday(b.dataset.del); APP_CFG.holidays=await DB.listHolidays();
+    toast('Cuti dipadam','ok'); pageKalendar(v); });
+}
+
 function emptyState(msg){return `<div class="empty">${IC.empty}<div>${esc(msg)}</div></div>`;}
 
 // Kecilkan imej (logo) ke saiz max px, pulangkan dataURL PNG (jimat saiz simpanan)

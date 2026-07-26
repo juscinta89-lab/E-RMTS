@@ -66,6 +66,10 @@ Sekarang ada menu **Daftar Akaun** dalam aplikasi:
 Cikgu isi nama murid dalam fail itu, simpan, dan upload semula. Logo sekolah pula boleh dimuat
 naik di **Tetapan Sekolah** dan akan dipaparkan pada borang C8.
 
+**Hari persekolahan & cuti:** modul **Hari & Cuti** — pilih **Kumpulan A** (belajar Ahad–Khamis,
+cuti Jumaat & Sabtu) atau **Kumpulan B** (belajar Isnin–Jumaat), atau tetapan sendiri. Boleh juga
+rekod cuti/kelepasan am (tarikh + nama). Hari cuti akan jadi kelabu & tak boleh ditanda dalam borang C8.
+
 > Tak perlu lagi buat dokumen `users` secara manual di Firestore Console.
 > App yang uruskan semua itu automatik.
 
