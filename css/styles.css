@@ -358,3 +358,9 @@ table.c8 tfoot td:first-child{position:sticky;left:0;z-index:4}
 /* Input kecil dalam borang C1/C2 */
 input.mini{width:56px;padding:5px 4px;font-size:12px;text-align:center;border-radius:6px}
 .b-klas{font-size:10px;font-weight:700;white-space:nowrap}
+
+/* Banner pengesahan bulanan C8 */
+.sah-banner{background:var(--blue-soft);border:1px solid var(--blue);color:var(--ink);
+  border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:12px;font-size:13px;
+  display:flex;align-items:center;flex-wrap:wrap;gap:6px}
+.sah-banner.open{background:var(--green-soft);border-color:var(--green)}

@@ -41,9 +41,15 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // attendance — guru & admin boleh baca/tulis (kawalan kelas dibuat di aplikasi)
+    // attendance — guru & admin boleh baca/tulis.
+    // KUNCI PENGESAHAN: selepas medan `sah` ditetapkan (bulan disahkan guru kelas),
+    // hanya admin boleh mengubah dokumen itu (termasuk membuka semula pengesahan).
     match /attendance/{id} {
-      allow read, write: if isSignedIn();
+      allow read:   if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn()
+        && (isAdmin() || !('sah' in resource.data) || resource.data.sah == null);
+      allow delete: if isAdmin();
     }
 
     // borang C1 (fizikal) & C2 (akademik) — sama seperti attendance
@@ -52,6 +58,12 @@ service cloud.firestore {
     }
     match /akademik/{id} {
       allow read, write: if isSignedIn();
+    }
+
+    // roster snapshot sesi lama — baca semua, tulis admin
+    match /rosters/{year} {
+      allow read:  if isSignedIn();
+      allow write: if isAdmin();
     }
 
     // holidays & activity_logs

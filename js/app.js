@@ -35,6 +35,10 @@ const ROLES = ['Administrator','Guru Besar','PK HEM','Guru RMT','Guru Kelas','Pe
 /* ---------------------------------------------------------
    1. Utiliti UI
 --------------------------------------------------------- */
+// Senarai tahun sesi: dari 2025 (mula guna sistem) hingga tahun hadapan.
+// Bertambah automatik setiap tahun; rekod lama sentiasa boleh dibuka semula.
+function yearRange(){ const y=new Date().getFullYear(); const out=[];
+  for(let i=2025;i<=y+1;i++) out.push(i); return out; }
 const sortCls=arr=>[...arr].sort((a,b)=>a.tahun-b.tahun||a.nama.localeCompare(b.nama));
 const $  = (s,el=document)=>el.querySelector(s);
 const $$ = (s,el=document)=>[...el.querySelectorAll(s)];
@@ -181,6 +185,57 @@ const DB = {
     if(USE_FIREBASE){await fbDB.collection('students').doc(id).delete();return;}
     DEMO.students=DEMO.students.filter(s=>s.id!==id); saveDemo(DEMO);
   },
+  async getSah(kelasId,year,month){
+    const key=`${kelasId}_${year}_${month}`;
+    if(USE_FIREBASE){const d=await fbDB.collection('attendance').doc(key).get();
+      return d.exists?(d.data().sah||null):null;}
+    return (DEMO.attendance[key]&&DEMO.attendance[key].sah)||null;
+  },
+  async setSah(kelasId,year,month,obj){
+    const key=`${kelasId}_${year}_${month}`;
+    if(USE_FIREBASE){await fbDB.collection('attendance').doc(key).set({sah:obj},{merge:true});return;}
+    DEMO.attendance[key]=DEMO.attendance[key]||{records:{}};
+    DEMO.attendance[key].sah=obj; saveDemo(DEMO);
+  },
+  /* ROSTER SNAPSHOT — senarai murid dibekukan per sesi (untuk rujukan sejarah) */
+  async getRoster(year){
+    if(USE_FIREBASE){const d=await fbDB.collection('rosters').doc(String(year)).get();return d.exists?d.data():null;}
+    return (DEMO.rosters&&DEMO.rosters[year])||null;
+  },
+  async saveRoster(year,data){
+    if(USE_FIREBASE){await fbDB.collection('rosters').doc(String(year)).set(data);return;}
+    DEMO.rosters=DEMO.rosters||{}; DEMO.rosters[year]=data; saveDemo(DEMO);
+  },
+  /* BACKUP penuh & pulihkan */
+  async dumpAll(){
+    if(USE_FIREBASE){
+      const colls=['settings','users','classes','students','attendance','fizikal','akademik','holidays','rosters'];
+      const out={__format:'rmt-skb-backup',__version:2,__tarikh:new Date().toISOString(),data:{}};
+      for(const c of colls){
+        const q=await fbDB.collection(c).get();
+        out.data[c]={}; q.docs.forEach(d=>{out.data[c][d.id]=d.data();});
+      }
+      return out;
+    }
+    return {__format:'rmt-skb-backup',__version:2,__tarikh:new Date().toISOString(),demo:DEMO};
+  },
+  async restoreAll(bk){
+    if(bk.__format!=='rmt-skb-backup') throw new Error('Fail bukan backup RMT yang sah.');
+    if(USE_FIREBASE){
+      if(!bk.data) throw new Error('Backup ini daripada Mod Demo — tidak sepadan dengan Mod Firebase.');
+      for(const [coll,docs] of Object.entries(bk.data)){
+        const ids=Object.keys(docs);
+        for(let i=0;i<ids.length;i+=400){
+          const batch=fbDB.batch();
+          ids.slice(i,i+400).forEach(id=>batch.set(fbDB.collection(coll).doc(id),docs[id]));
+          await batch.commit();
+        }
+      }
+      return;
+    }
+    if(!bk.demo) throw new Error('Backup ini daripada Mod Firebase — tidak sepadan dengan Mod Demo.');
+    DEMO=bk.demo; saveDemo(DEMO);
+  },
   /* BORANG C1/C2 — satu dokumen per (jenis,kelas,tahun) */
   async getForm(coll,kelasId,year){
     const key=`${kelasId}_${year}`;
@@ -250,6 +305,7 @@ async function loadConfig(){
   try{
     const s=await DB.getSchool();
     APP_CFG.restDays = Array.isArray(s.restDays)&&s.restDays.length? s.restDays : [0,6];
+    APP_CFG.sesi = s.sesi || new Date().getFullYear();
     APP_CFG.holidays = await DB.listHolidays();
   }catch(e){ /* biar lalai */ }
 }
@@ -614,7 +670,7 @@ async function pageKehadiran(v){
   const clsOpts=allowed.map(c=>`<option value="${c.id}" ${c.id===C8_STATE.kelasId?'selected':''}>Tahun ${c.tahun} ${esc(c.nama)}</option>`).join('');
   const moOpts=MONTHS.map((mm,i)=>`<option value="${i}" ${i===C8_STATE.month?'selected':''}>${mm}</option>`).join('');
   const yNow=new Date().getFullYear();
-  const yOpts=[yNow-1,yNow,yNow+1].map(yy=>`<option value="${yy}" ${yy===C8_STATE.year?'selected':''}>${yy}</option>`).join('');
+  const yOpts=yearRange().map(yy=>`<option value="${yy}" ${yy===C8_STATE.year?'selected':''}>${yy}</option>`).join('');
 
   v.innerHTML=`
     <div class="page-head"><h2>Rekod Kehadiran Murid RMT</h2><div class="spacer"></div>
@@ -647,9 +703,10 @@ async function renderC8(){
   const {kelasId,year,month}=C8_STATE;
   const [students,classes,school]=await Promise.all([DB.getStudents(),DB.getClasses(),DB.getSchool()]);
   const cls=classes.find(c=>c.id===kelasId);
-  const roster=students.filter(s=>s.kelasId===kelasId && s.statusRMT==='Aktif')
-                       .sort((a,b)=>a.nama.localeCompare(b.nama));
+  const roster=await rosterStudents(kelasId,year);
   const rec=await DB.getAttendance(kelasId,year,month);
+  const sahInfo=await DB.getSah(kelasId,year,month);
+  C8_STATE.locked=!!sahInfo;
   // rekod bulan lepas (untuk kolum "BULAN LEPAS")
   const pm = month===0?11:month-1, py = month===0?year-1:year;
   const recPrev=await DB.getAttendance(kelasId,py,pm);
@@ -696,7 +753,20 @@ async function renderC8(){
   const footHadir=dayCells.map(c=>`<td class="col-day ${c.we?'we':''} ${c.hol?'hol':''}" data-foot="hadir" data-day="${c.d}"></td>`).join('');
   const footShould=dayCells.map(c=>`<td class="col-day ${c.we?'we':''} ${c.hol?'hol':''}" data-foot="should" data-day="${c.d}"></td>`).join('');
 
+  const bolehSah = isAdmin() || CURRENT.kelasId===kelasId || cls.guruId===CURRENT.id;
+  let sahZone='';
+  if(sahInfo){
+    const tkh=new Date(sahInfo.tarikh);
+    sahZone=`<div class="sah-banner no-print">🔒 <b>Telah disahkan</b> oleh ${esc(sahInfo.olehNama)}
+      pada ${tkh.toLocaleDateString('ms-MY')} — kehadiran bulan ini tidak boleh diubah lagi.
+      ${isAdmin()?'<button class="btn btn-sm btn-ghost" id="c8-unsah" style="margin-left:10px">Buka Semula (Admin)</button>':''}</div>`;
+  }else if(bolehSah){
+    sahZone=`<div class="sah-banner open no-print">Selepas semua kehadiran ${MONTHS[month]} lengkap,
+      guru kelas boleh mengesahkan rekod ini.
+      <button class="btn btn-sm btn-primary" id="c8-sah" style="margin-left:10px">✔ Sahkan Bulan Ini</button></div>`;
+  }
   holder.innerHTML=`
+    ${sahZone}
     <div class="c8-scroll">
       <table class="c8">
         <thead>
@@ -732,14 +802,33 @@ async function renderC8(){
     </div>`;
 
   recalcFooter();
-  // klik sel
-  $$('.c8 td.day').forEach(td=>{
-    if(td.dataset.lock)return;
-    td.onclick=()=>cycleCell(td);
-  });
+  // klik sel — hanya jika BELUM disahkan
+  if(!C8_STATE.locked){
+    $$('.c8 td.day').forEach(td=>{
+      if(td.dataset.lock)return;
+      td.onclick=()=>cycleCell(td);
+    });
+  }
+  const sahBtn=$('#c8-sah');
+  if(sahBtn) sahBtn.onclick=async()=>{
+    const ok=await confirmDialog(`Sahkan kehadiran ${MONTHS[month]} ${year} untuk kelas ini? Selepas disahkan, data TIDAK BOLEH diubah lagi (hanya Admin boleh membukanya semula). Pastikan semua hari telah ditanda dengan betul.`);
+    if(!ok) return;
+    await DB.setSah(kelasId,year,month,{oleh:CURRENT.id,olehNama:CURRENT.nama,tarikh:new Date().toISOString()});
+    toast('Kehadiran bulan ini telah disahkan & dikunci.','ok');
+    renderC8();
+  };
+  const unsahBtn=$('#c8-unsah');
+  if(unsahBtn) unsahBtn.onclick=async()=>{
+    const ok=await confirmDialog('Buka semula pengesahan? Guru akan dapat mengubah kehadiran bulan ini semula.');
+    if(!ok) return;
+    await DB.setSah(kelasId,year,month,null);
+    toast('Pengesahan dibuka semula.','info');
+    renderC8();
+  };
 }
 
 async function cycleCell(td){
+  if(C8_STATE.locked){toast('Bulan ini telah disahkan — tidak boleh diubah.','err');return;}
   const sid=td.dataset.sid, day=+td.dataset.day;
   const cur=td.classList.contains('present')?'H':td.classList.contains('absent')?'X':'';
   const next={'':'H','H':'X','X':''}[cur];
@@ -771,7 +860,7 @@ async function pageBorang(v){
 
   const clsOpts=allowed.map(c=>`<option value="${c.id}" ${c.id===BORANG_STATE.kelasId?'selected':''}>Tahun ${c.tahun} ${esc(c.nama)}</option>`).join('');
   const yNow=new Date().getFullYear();
-  const yOpts=[yNow-1,yNow,yNow+1].map(y=>`<option ${y===BORANG_STATE.year?'selected':''}>${y}</option>`).join('');
+  const yOpts=yearRange().map(y=>`<option ${y===BORANG_STATE.year?'selected':''}>${y}</option>`).join('');
 
   v.innerHTML=`
     <div class="page-head"><h2>Borang C1 / C2</h2><div class="spacer"></div>
@@ -798,8 +887,7 @@ async function renderBorang(){
   const holder=$('#b-holder'); if(!holder)return;
   holder.innerHTML='<div class="center-load"><span class="spinner dark"></span></div>';
   const {jenis,kelasId,year}=BORANG_STATE;
-  const students=(await DB.getStudents()).filter(s=>s.kelasId===kelasId&&s.statusRMT==='Aktif')
-    .sort((a,b)=>a.nama.localeCompare(b.nama));
+  const students=await rosterStudents(kelasId,year);
   const coll=jenis==='C1'?'fizikal':'akademik';
   const rec=await DB.getForm(coll,kelasId,year);
 
@@ -899,6 +987,67 @@ async function renderBorang(){
 }
 
 
+
+/* ---------------------------------------------------------
+   ROSTER SEJARAH & NAIK KELAS
+--------------------------------------------------------- */
+// Senarai murid sesebuah kelas untuk tahun tertentu.
+// Tahun lepas (sudah diproses naik kelas) → guna snapshot beku; jika tiada → senarai semasa.
+async function rosterStudents(kelasId,year){
+  const sesi=APP_CFG.sesi||new Date().getFullYear();
+  if(year<sesi){
+    const snap=await DB.getRoster(year);
+    if(snap&&snap.students){
+      return Object.entries(snap.students)
+        .filter(([id,st])=>st.kelasId===kelasId&&st.statusRMT==='Aktif')
+        .map(([id,st])=>({id,...st}))
+        .sort((a,b)=>a.nama.localeCompare(b.nama));
+    }
+  }
+  return (await DB.getStudents())
+    .filter(s=>s.kelasId===kelasId&&s.statusRMT==='Aktif')
+    .sort((a,b)=>a.nama.localeCompare(b.nama));
+}
+
+// Proses naik kelas: snapshot sesi semasa → T1-5 naik, T6 tamat → sesi+1
+async function prosesNaikKelas(){
+  const sesi=APP_CFG.sesi||new Date().getFullYear();
+  const [students,classes]=await Promise.all([DB.getStudents(),DB.getClasses()]);
+
+  // 1. Bekukan roster sesi semasa
+  const snapStudents={};
+  students.forEach(s=>{snapStudents[s.id]={nama:s.nama,mykid:s.mykid||'',jantina:s.jantina,
+    tahun:s.tahun,kelasId:s.kelasId||null,statusRMT:s.statusRMT};});
+  await DB.saveRoster(sesi,{sesi,tarikh:new Date().toISOString(),
+    students:snapStudents,
+    classes:sortCls(classes).map(c=>({id:c.id,tahun:c.tahun,nama:c.nama}))});
+
+  // 2. Proses setiap murid
+  let naik=0,tamat=0,tiadaKelas=0;
+  for(const st of students){
+    if(st.statusRMT!=='Aktif') continue;
+    if(st.tahun>=6){
+      await DB.saveStudent({...st,statusRMT:'Tamat'});
+      tamat++;
+    }else{
+      const curCls=classes.find(c=>c.id===st.kelasId);
+      let newKelasId=null;
+      if(curCls){
+        const target=classes.find(c=>c.tahun===st.tahun+1&&c.nama===curCls.nama);
+        if(target) newKelasId=target.id;
+      }
+      if(!newKelasId) tiadaKelas++;
+      await DB.saveStudent({...st,tahun:st.tahun+1,kelasId:newKelasId});
+      naik++;
+    }
+  }
+
+  // 3. Sesi baharu
+  await DB.saveSchool({sesi:sesi+1});
+  APP_CFG.sesi=sesi+1;
+  return {sesi,naik,tamat,tiadaKelas};
+}
+
 /* ---------------------------------------------------------
    HALAMAN: Rumusan Keseluruhan Kehadiran
 --------------------------------------------------------- */
@@ -908,7 +1057,7 @@ async function pageRumusan(v){
   const yNow=new Date().getFullYear();
   const moOpts=`<option value="-1" ${RUM_STATE.month===-1?'selected':''}>Setahun (Jan–Dis)</option>`+
     MONTHS.map((m,i)=>`<option value="${i}" ${i===RUM_STATE.month?'selected':''}>${m}</option>`).join('');
-  const yOpts=[yNow-1,yNow,yNow+1].map(y=>`<option ${y===RUM_STATE.year?'selected':''}>${y}</option>`).join('');
+  const yOpts=yearRange().map(y=>`<option ${y===RUM_STATE.year?'selected':''}>${y}</option>`).join('');
   v.innerHTML=`
     <div class="page-head"><h2>Rumusan Kehadiran</h2><div class="spacer"></div>
       <button class="btn btn-blue" id="printRum">${IC.print} Cetak / PDF</button></div>
@@ -927,8 +1076,16 @@ async function pageRumusan(v){
 
 async function computeRumusan(){
   const {year,month}=RUM_STATE;
-  const [classes,students]=await Promise.all([DB.getClasses(),DB.getStudents()]);
-  const act=students.filter(s=>s.statusRMT==='Aktif');
+  const sesi=APP_CFG.sesi||new Date().getFullYear();
+  let classes,act;
+  const snap = year<sesi ? await DB.getRoster(year) : null;
+  if(snap&&snap.students){
+    classes=snap.classes||[];
+    act=Object.entries(snap.students).map(([id,st])=>({id,...st})).filter(s=>s.statusRMT==='Aktif');
+  }else{
+    const [cls,students]=await Promise.all([DB.getClasses(),DB.getStudents()]);
+    classes=cls; act=students.filter(s=>s.statusRMT==='Aktif');
+  }
   const list=sortCls(classes);
   const rows=[]; let T={murid:0,h:0,x:0};
   const monthsToScan = month===-1 ? [...Array(12).keys()] : [month];
@@ -1075,6 +1232,7 @@ async function printC8(){
   const [school,classes,users]=await Promise.all([DB.getSchool(),DB.getClasses(),DB.getUsers()]);
   const cls=classes.find(c=>c.id===kelasId)||{};
   const guru=users.find(u=>u.id===cls.guruId);
+  const sahP=await DB.getSah(kelasId,year,month);
 
   const clone=src.cloneNode(true);
   const t=clone.querySelector('.c8-title'); if(t){const tr=t.closest('tr'); if(tr)tr.remove();}
@@ -1123,6 +1281,7 @@ async function printC8(){
       <div><b>BULAN:</b> ${MONTHS[month].toUpperCase()} ${year}</div>
       <div><b>KELAS:</b> TAHUN ${cls.tahun||''} ${esc((cls.nama||'').toUpperCase())}</div>
       <div><b>GURU KELAS:</b> ${esc(guru?guru.nama.toUpperCase():'—')}</div>
+      ${sahP?`<div><b>DISAHKAN:</b> ${esc(sahP.olehNama)} · ${new Date(sahP.tarikh).toLocaleDateString('ms-MY')}</div>`:''}
     </div>
     ${clone.outerHTML}
     <div class="sign">
@@ -1199,7 +1358,7 @@ async function pageMurid(v){
   const rows=list.map((s,i)=>`<tr>
       <td>${i+1}</td><td>${esc(s.nama)}</td><td>${esc(s.mykid||'—')}</td>
       <td>${s.jantina==='L'?'Lelaki':'Perempuan'}</td><td>${esc(clsName(s.kelasId))}</td>
-      <td><span class="badge ${s.statusRMT==='Aktif'?'ok':'off'}">${esc(s.statusRMT)}</span></td>
+      <td><span class="badge ${s.statusRMT==='Aktif'?'ok':(s.statusRMT==='Tamat'?'b':'off')}">${esc(s.statusRMT)}</span></td>
       <td class="no-print" style="white-space:nowrap">
         <button class="btn btn-sm" data-edit="${s.id}">Edit</button>
         ${isAdmin()?`<button class="btn btn-sm btn-danger" data-del="${s.id}">Padam</button>`:''}
@@ -1216,7 +1375,8 @@ async function pageMurid(v){
       <div class="field"><label>Status RMT</label><select id="f-status">
         <option value="">Semua</option>
         <option ${MURID_FILTER.statusRMT==='Aktif'?'selected':''}>Aktif</option>
-        <option ${MURID_FILTER.statusRMT==='Tidak Aktif'?'selected':''}>Tidak Aktif</option></select></div>
+        <option ${MURID_FILTER.statusRMT==='Tidak Aktif'?'selected':''}>Tidak Aktif</option>
+        <option ${MURID_FILTER.statusRMT==='Tamat'?'selected':''}>Tamat</option></select></div>
       <span style="align-self:center;color:var(--muted);font-size:13px">${list.length} murid</span>
     </div>
     <div class="tbl-wrap"><table class="data">
@@ -1253,7 +1413,8 @@ function studentModal(s,classes,v){
       </div>
       <div class="field"><label>Status RMT</label><select id="m-status">
         <option ${s.statusRMT==='Aktif'?'selected':''}>Aktif</option>
-        <option ${s.statusRMT==='Tidak Aktif'?'selected':''}>Tidak Aktif</option></select></div>
+        <option ${s.statusRMT==='Tidak Aktif'?'selected':''}>Tidak Aktif</option>
+        <option ${s.statusRMT==='Tamat'?'selected':''}>Tamat</option></select></div>
     </div>
     <div class="modal-foot"><button class="btn btn-ghost" onclick="closeModal()">Batal</button>
       <button class="btn btn-primary" id="m-save">Simpan</button></div>`);
@@ -1451,6 +1612,31 @@ async function pageTetapan(v){
       </div>
       <div class="field"><label>Nama Penyelaras RMT</label><input id="s-peny" value="${esc(s.penyelaras||'')}"></div>
       <button class="btn btn-primary" id="s-save">Simpan Tetapan</button>
+    </div>
+
+    <div class="card" style="max-width:640px;margin-top:18px">
+      <h3 style="margin:0 0 6px">Naik Kelas (Sesi Baharu)</h3>
+      <p style="color:var(--muted);font-size:13px;margin:0 0 12px">
+        Sesi semasa: <b>${APP_CFG.sesi||new Date().getFullYear()}</b>.
+        Proses ini akan: (1) membekukan senarai murid sesi semasa supaya rekod lama
+        kekal boleh dirujuk, (2) menaikkan murid Tahun 1–5 ke tahun berikutnya
+        (kelas dipadankan ikut nama, cth T1 INOVASI → T2 INOVASI),
+        (3) menanda murid Tahun 6 sebagai <b>Tamat</b>, dan (4) memulakan sesi baharu.
+        Dijalankan <b>sekali sahaja</b> pada hujung/awal tahun persekolahan.</p>
+      <button class="btn btn-primary" id="s-promote">Proses Naik Kelas ke Sesi ${(APP_CFG.sesi||new Date().getFullYear())+1}</button>
+    </div>
+
+    <div class="card" style="max-width:640px;margin-top:18px">
+      <h3 style="margin:0 0 6px">Backup &amp; Pulihkan</h3>
+      <p style="color:var(--muted);font-size:13px;margin:0 0 12px">
+        Muat turun salinan penuh semua data (tetapan, pengguna, kelas, murid, kehadiran,
+        borang C1/C2, cuti, roster sesi lama) sebagai satu fail JSON. Simpan di
+        Google Drive/pendrive secara berkala. Jika sistem bermasalah, pulihkan dari fail ini.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-blue" id="s-backup">⬇ Muat Turun Backup</button>
+        <label class="btn btn-ghost" style="cursor:pointer">⬆ Pulihkan dari Backup
+          <input type="file" id="s-restore" accept=".json" style="display:none"></label>
+      </div>
     </div>`;
 
   $('#s-logo-file').onchange=e=>{ const f=e.target.files[0]; if(!f)return;
@@ -1466,6 +1652,50 @@ async function pageTetapan(v){
       negeri:$('#s-negeri').value,tel:$('#s-tel').value,alamat:$('#s-alamat').value,email:$('#s-email').value,
       gb:$('#s-gb').value,pkhem:$('#s-pkhem').value,penyelaras:$('#s-peny').value,logo:logoData});
     toast('Tetapan disimpan','ok');
+  };
+
+  /* --- Naik Kelas --- */
+  $('#s-promote').onclick=async()=>{
+    const sesi=APP_CFG.sesi||new Date().getFullYear();
+    const ok=await confirmDialog(`PROSES NAIK KELAS ke sesi ${sesi+1}? Murid Tahun 1–5 akan dinaikkan, Tahun 6 ditanda Tamat, dan senarai sesi ${sesi} dibekukan untuk rujukan. Pastikan anda telah memuat turun Backup terlebih dahulu. Proses ini dijalankan SEKALI sahaja setahun.`);
+    if(!ok) return;
+    const btn=$('#s-promote'); btn.disabled=true; btn.innerHTML='<span class="spinner"></span> Memproses…';
+    try{
+      const r=await prosesNaikKelas();
+      toast(`Selesai! ${r.naik} murid naik kelas, ${r.tamat} murid Tahun 6 tamat.`+(r.tiadaKelas?` ${r.tiadaKelas} murid tiada kelas padanan — sila tetapkan kelas di Maklumat Murid.`:''),'ok');
+      pageTetapan(v);
+    }catch(e){ toast(authErr(e),'err'); btn.disabled=false; btn.textContent='Proses Naik Kelas'; }
+  };
+
+  /* --- Backup --- */
+  $('#s-backup').onclick=async()=>{
+    const btn=$('#s-backup'); btn.disabled=true; btn.innerHTML='<span class="spinner"></span>';
+    try{
+      const bk=await DB.dumpAll();
+      const nama=`backup-rmt-skbelukar-${new Date().toISOString().slice(0,10)}.json`;
+      const blob=new Blob([JSON.stringify(bk)],{type:'application/json'});
+      const url=URL.createObjectURL(blob); const a=document.createElement('a');
+      a.href=url; a.download=nama; document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+      toast('Backup dimuat turun: '+nama,'ok');
+    }catch(e){ toast(authErr(e),'err'); }
+    btn.disabled=false; btn.textContent='⬇ Muat Turun Backup';
+  };
+
+  /* --- Pulihkan --- */
+  $('#s-restore').onchange=async e=>{
+    const f=e.target.files[0]; if(!f)return;
+    const ok=await confirmDialog('PULIHKAN dari backup? Data sedia ada akan DITULIS GANTI dengan kandungan fail. Pastikan fail yang betul dipilih.');
+    e.target.value='';
+    if(!ok) return;
+    try{
+      const txt=await f.text();
+      const bk=JSON.parse(txt);
+      await DB.restoreAll(bk);
+      await loadConfig();
+      toast('Data berjaya dipulihkan dari backup!','ok');
+      pageTetapan(v);
+    }catch(err){ toast('Gagal pulihkan: '+(err.message||err),'err'); }
   };
 }
 
