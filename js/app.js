@@ -23,6 +23,7 @@ const IC = {
   moon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg>',
   print:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>',
   x:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>',
+  file:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h6"/></svg>',
   empty:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 12l9 4 9-4M3 17l9 4 9-4"/></svg>'
 };
 
@@ -177,6 +178,25 @@ const DB = {
   async delStudent(id){
     if(USE_FIREBASE){await fbDB.collection('students').doc(id).delete();return;}
     DEMO.students=DEMO.students.filter(s=>s.id!==id); saveDemo(DEMO);
+  },
+  /* BORANG C1/C2 — satu dokumen per (jenis,kelas,tahun) */
+  async getForm(coll,kelasId,year){
+    const key=`${kelasId}_${year}`;
+    if(USE_FIREBASE){const d=await fbDB.collection(coll).doc(key).get();return d.exists?(d.data().records||{}):{};}
+    DEMO.forms=DEMO.forms||{};
+    return (DEMO.forms[coll+'_'+key]?.records)||{};
+  },
+  async saveFormCell(coll,kelasId,year,sid,field,val){
+    const key=`${kelasId}_${year}`;
+    if(USE_FIREBASE){
+      await fbDB.collection(coll).doc(key).set({records:{[sid]:{[field]:val}}},{merge:true});
+      return;
+    }
+    DEMO.forms=DEMO.forms||{};
+    const k=coll+'_'+key;
+    DEMO.forms[k]=DEMO.forms[k]||{records:{}};
+    const r=DEMO.forms[k].records; r[sid]=r[sid]||{}; r[sid][field]=val;
+    saveDemo(DEMO);
   },
   /* KEHADIRAN — satu dokumen per (kelas,tahun,bulan) */
   async getAttendance(kelasId,year,month){
@@ -425,6 +445,7 @@ const NAV=[
   {id:'dashboard',label:'Dashboard',short:'Utama',icon:'dash',all:true},
   {id:'kehadiran',label:'Kehadiran (C8)',short:'Kehadiran',icon:'check',all:true},
   {id:'murid',label:'Maklumat Murid',short:'Murid',icon:'student',all:true},
+  {id:'borang',label:'Borang C1/C2',short:'Borang',icon:'file',all:true},
   {id:'kelas',label:'Maklumat Kelas',short:'Kelas',icon:'cls',admin:true},
   {id:'guru',label:'Guru & Pengguna',short:'Guru',icon:'teacher',admin:true},
   {id:'kalendar',label:'Hari & Cuti',short:'Cuti',icon:'cal',admin:true},
@@ -481,7 +502,7 @@ function route(){
   const v=$('#view'); if(!v)return;
   v.innerHTML='<div class="center-load"><span class="spinner dark"></span></div>';
   ({dashboard:pageDashboard,kehadiran:pageKehadiran,murid:pageMurid,
-    kelas:pageKelas,guru:pageGuru,kalendar:pageKalendar,tetapan:pageTetapan}[page]||pageDashboard)(v);
+    kelas:pageKelas,guru:pageGuru,kalendar:pageKalendar,borang:pageBorang,tetapan:pageTetapan}[page]||pageDashboard)(v);
 }
 window.addEventListener('hashchange',route);
 
@@ -730,6 +751,201 @@ async function cycleCell(td){
     showSaved();
   }catch(e){ toast('Gagal simpan: '+e.message,'err'); }
 }
+
+/* ---------------------------------------------------------
+   HALAMAN: Borang C1 (Fizikal) & C2 (Akademik)
+--------------------------------------------------------- */
+const BORANG_STATE={jenis:'C1',kelasId:null,year:new Date().getFullYear()};
+
+function bmiVal(b,t){ b=+b; t=+t; if(!b||!t) return null; return +(b/(t*t)).toFixed(1); }
+function bmiKlas(v){ if(v==null)return''; if(v<18.5)return'Kurang Berat'; if(v<25)return'Normal'; if(v<30)return'Berlebihan'; return'Obesiti'; }
+
+async function pageBorang(v){
+  const classes=await DB.getClasses();
+  let allowed = isAdmin() ? classes : classes.filter(c=>c.id===CURRENT.kelasId||c.guruId===CURRENT.id);
+  if(!allowed.length){ v.innerHTML=emptyState('Tiada kelas diperuntukkan kepada anda.'); return; }
+  if(!BORANG_STATE.kelasId||!allowed.find(c=>c.id===BORANG_STATE.kelasId)) BORANG_STATE.kelasId=allowed[0].id;
+
+  const clsOpts=allowed.map(c=>`<option value="${c.id}" ${c.id===BORANG_STATE.kelasId?'selected':''}>Tahun ${c.tahun} ${esc(c.nama)}</option>`).join('');
+  const yNow=new Date().getFullYear();
+  const yOpts=[yNow-1,yNow,yNow+1].map(y=>`<option ${y===BORANG_STATE.year?'selected':''}>${y}</option>`).join('');
+
+  v.innerHTML=`
+    <div class="page-head"><h2>Borang C1 / C2</h2><div class="spacer"></div>
+      <button class="btn btn-blue" id="printBorang">${IC.print} Cetak / PDF</button></div>
+    <div class="c8-toolbar no-print">
+      <div class="field"><label>Borang</label><select id="b-jenis">
+        <option value="C1" ${BORANG_STATE.jenis==='C1'?'selected':''}>C1 — Rekod Fizikal Murid</option>
+        <option value="C2" ${BORANG_STATE.jenis==='C2'?'selected':''}>C2 — Rekod Akademik Murid</option></select></div>
+      <div class="field"><label>Kelas</label><select id="b-kelas">${clsOpts}</select></div>
+      <div class="field"><label>Tahun</label><select id="b-tahun">${yOpts}</select></div>
+      <span class="c8-save-tag" id="b-save"></span>
+    </div>
+    <div id="b-holder"></div>
+    <p class="no-print" style="color:var(--muted);font-size:12px;margin-top:10px" id="b-nota"></p>`;
+
+  $('#b-jenis').onchange=e=>{BORANG_STATE.jenis=e.target.value;renderBorang();};
+  $('#b-kelas').onchange=e=>{BORANG_STATE.kelasId=e.target.value;renderBorang();};
+  $('#b-tahun').onchange=e=>{BORANG_STATE.year=+e.target.value;renderBorang();};
+  $('#printBorang').onclick=printBorang;
+  renderBorang();
+}
+
+async function renderBorang(){
+  const holder=$('#b-holder'); if(!holder)return;
+  holder.innerHTML='<div class="center-load"><span class="spinner dark"></span></div>';
+  const {jenis,kelasId,year}=BORANG_STATE;
+  const students=(await DB.getStudents()).filter(s=>s.kelasId===kelasId&&s.statusRMT==='Aktif')
+    .sort((a,b)=>a.nama.localeCompare(b.nama));
+  const coll=jenis==='C1'?'fizikal':'akademik';
+  const rec=await DB.getForm(coll,kelasId,year);
+
+  if(jenis==='C1'){
+    const rows=students.map((s,i)=>{
+      const r=rec[s.id]||{};
+      const bmiJ=bmiVal(r.jan_b,r.jan_t), bmiN=bmiVal(r.nov_b,r.nov_t);
+      const inp=(f,vv,step)=>`<input class="mini" type="number" step="${step}" min="0" value="${vv??''}" data-sid="${s.id}" data-f="${f}">`;
+      return `<tr>
+        <td class="col-bil">${i+1}</td>
+        <td class="name col-nama">${esc(s.nama)}</td>
+        <td>${s.tahun}</td>
+        <td>${inp('jan_b',r.jan_b,'0.1')}</td><td>${inp('jan_t',r.jan_t,'0.01')}</td>
+        <td data-bmi="jan-${s.id}">${bmiJ??''}</td><td class="b-klas" data-klas="jan-${s.id}">${bmiKlas(bmiJ)}</td>
+        <td>${inp('nov_b',r.nov_b,'0.1')}</td><td>${inp('nov_t',r.nov_t,'0.01')}</td>
+        <td data-bmi="nov-${s.id}">${bmiN??''}</td><td class="b-klas" data-klas="nov-${s.id}">${bmiKlas(bmiN)}</td>
+      </tr>`;
+    }).join('')||`<tr><td colspan="11" style="padding:18px;color:var(--muted)">Tiada murid RMT aktif.</td></tr>`;
+    holder.innerHTML=`
+      <div class="c8-scroll"><table class="c8" id="b-table">
+        <thead>
+          <tr><th class="col-bil" rowspan="2">BIL</th><th class="col-nama" rowspan="2">NAMA MURID</th>
+            <th rowspan="2"><span class="vert">TAHUN</span></th>
+            <th colspan="4">JANUARI</th><th colspan="4">NOVEMBER</th></tr>
+          <tr><th>BERAT<br>(kg)</th><th>TINGGI<br>(m)</th><th>BMI</th><th>KLASIFIKASI</th>
+              <th>BERAT<br>(kg)</th><th>TINGGI<br>(m)</th><th>BMI</th><th>KLASIFIKASI</th></tr>
+        </thead><tbody>${rows}</tbody></table></div>`;
+    $('#b-nota').textContent='BMI dan klasifikasi dikira automatik (berat ÷ tinggi²). Tinggi dalam meter (cth 1.32). Auto simpan.';
+  }else{
+    const rows=students.map((s,i)=>{
+      const r=rec[s.id]||{};
+      const tov=r.tov??'', ar=r.ar??'';
+      const pres = (tov!==''&&ar!=='') ? (+ar>+tov?'MENINGKAT':(+ar<+tov?'MENURUN':'KEKAL')) : '';
+      return `<tr>
+        <td class="col-bil">${i+1}</td>
+        <td class="name col-nama">${esc(s.nama)}</td>
+        <td style="white-space:nowrap">T${s.tahun}</td>
+        <td><input class="mini" type="number" step="0.1" min="0" max="100" value="${tov}" data-sid="${s.id}" data-f="tov"></td>
+        <td><input class="mini" type="number" step="0.1" min="0" max="100" value="${ar}" data-sid="${s.id}" data-f="ar"></td>
+        <td class="b-klas" data-pres="${s.id}">${pres}</td>
+      </tr>`;
+    }).join('')||`<tr><td colspan="6" style="padding:18px;color:var(--muted)">Tiada murid RMT aktif.</td></tr>`;
+    holder.innerHTML=`
+      <div style="margin-bottom:10px" class="no-print">
+        <button class="btn btn-sm" id="b-auto">⚡ Auto-kira % dari rekod kehadiran (November)</button></div>
+      <div class="c8-scroll"><table class="c8" id="b-table">
+        <thead>
+          <tr><th class="col-bil" rowspan="2">BIL</th><th class="col-nama" rowspan="2">NAMA MURID</th>
+            <th rowspan="2">KELAS</th><th colspan="2">PERATUS KEHADIRAN</th>
+            <th rowspan="2">PRESTASI<br>(MENINGKAT/MENURUN)</th></tr>
+          <tr><th>TOV<br>NOV ${year-1}</th><th>AR<br>NOV ${year}</th></tr>
+        </thead><tbody>${rows}</tbody></table></div>`;
+    $('#b-nota').textContent='TOV = November tahun sebelum · AR = November tahun semasa. Boleh isi manual atau auto-kira. Auto simpan.';
+    $('#b-auto').onclick=async()=>{
+      const btn=$('#b-auto'); btn.disabled=true; btn.textContent='Mengira…';
+      const [recPrev,recNow]=await Promise.all([
+        DB.getAttendance(kelasId,year-1,10), DB.getAttendance(kelasId,year,10)]);
+      const pct=(rr,sid)=>{const r=rr[sid]||{};let h=0,x=0;
+        Object.values(r).forEach(m=>{if(m==='H')h++;else if(m==='X')x++;});
+        return (h+x)? +(h/(h+x)*100).toFixed(1) : null;};
+      let n=0;
+      for(const st of students){
+        const a=pct(recPrev,st.id), b=pct(recNow,st.id);
+        if(a!=null){await DB.saveFormCell('akademik',kelasId,year,st.id,'tov',a);n++;}
+        if(b!=null){await DB.saveFormCell('akademik',kelasId,year,st.id,'ar',b);n++;}
+      }
+      toast(n?`${n} nilai dikira & disimpan`:'Tiada rekod kehadiran November dijumpai','info');
+      renderBorang();
+    };
+  }
+
+  // Auto-save setiap input + kemaskini kiraan
+  $$('#b-table input.mini').forEach(inp=>{
+    inp.onchange=async()=>{
+      const sid=inp.dataset.sid, f=inp.dataset.f;
+      const val=inp.value===''?null:+inp.value;
+      const st=$('#b-save'); if(st)st.textContent='Menyimpan…';
+      await DB.saveFormCell(coll,kelasId,year,sid,f,val);
+      if(st){st.textContent='✓ Tersimpan'; setTimeout(()=>{if(st)st.textContent='';},1500);}
+      if(jenis==='C1'){
+        const row=inp.closest('tr');
+        const g=p=>{const el=row.querySelector(`input[data-f="${p}"]`);return el?el.value:'';};
+        const bj=bmiVal(g('jan_b'),g('jan_t')), bn=bmiVal(g('nov_b'),g('nov_t'));
+        row.querySelector(`[data-bmi="jan-${sid}"]`).textContent=bj??'';
+        row.querySelector(`[data-klas="jan-${sid}"]`).textContent=bmiKlas(bj);
+        row.querySelector(`[data-bmi="nov-${sid}"]`).textContent=bn??'';
+        row.querySelector(`[data-klas="nov-${sid}"]`).textContent=bmiKlas(bn);
+      }else{
+        const row=inp.closest('tr');
+        const tov=row.querySelector('input[data-f="tov"]').value;
+        const ar=row.querySelector('input[data-f="ar"]').value;
+        row.querySelector(`[data-pres="${sid}"]`).textContent=
+          (tov!==''&&ar!=='')?(+ar>+tov?'MENINGKAT':(+ar<+tov?'MENURUN':'KEKAL')):'';
+      }
+    };
+  });
+}
+
+/* Cetakan rasmi C1/C2 — A4 potret, gaya borang KPM */
+async function printBorang(){
+  const src=$('#b-table'); if(!src){toast('Borang belum dipaparkan.','err');return;}
+  const {jenis,kelasId,year}=BORANG_STATE;
+  const [school,classes]=await Promise.all([DB.getSchool(),DB.getClasses()]);
+  const cls=classes.find(c=>c.id===kelasId)||{};
+  const clone=src.cloneNode(true);
+  // tukar input kepada teks
+  clone.querySelectorAll('input').forEach(inp=>{
+    const td=inp.parentElement; td.textContent=inp.value||''; });
+  const tajuk=jenis==='C1'?'REKOD FIZIKAL MURID':'REKOD AKADEMIK MURID';
+  const html=`<!DOCTYPE html><html lang="ms"><head><meta charset="utf-8"><title>Borang ${jenis} — ${year}</title><style>
+    @page{size:A4 portrait;margin:10mm}
+    *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    body{font-family:Arial,Helvetica,sans-serif;margin:0;color:#000}
+    .top{display:flex;align-items:flex-start}
+    .top img{height:52px}
+    .top .tag{margin-left:auto;font-size:11px;font-weight:bold;border:1.5px solid #000;padding:3px 10px}
+    h1{text-align:center;font-size:16px;border:2px solid #000;display:table;margin:8px auto 12px;padding:5px 18px;letter-spacing:1px}
+    .meta{font-size:11px;margin-bottom:10px;line-height:1.7}
+    table{border-collapse:collapse;width:100%;font-size:9.5px}
+    th,td{border:1px solid #000;text-align:center;padding:3px 2px}
+    thead th{background:#F8CBAD;font-weight:bold}
+    td.name{text-align:left;padding:3px 5px}
+    .vert{writing-mode:vertical-rl;transform:rotate(180deg)}
+    .b-klas{font-size:8.5px}
+    .sign{display:flex;justify-content:space-between;margin-top:28px;font-size:11px;page-break-inside:avoid}
+    .sign .s{width:40%;text-align:center}
+    .sign .line{border-top:1px dotted #000;margin-top:42px;padding-top:4px;font-weight:bold}
+  </style></head><body>
+    <div class="top">${school.logo?`<img src="${school.logo}">`:''}<div class="tag">BORANG ${jenis}</div></div>
+    <h1>${tajuk}</h1>
+    <div class="meta">
+      <b>NAMA SEKOLAH</b> : ${esc(school.nama||'')}<br>
+      <b>KOD SEKOLAH</b> &nbsp;&nbsp;: ${esc(school.kod||'')}<br>
+      <b>DAERAH</b> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: ${esc(school.daerah||'')} &nbsp;&nbsp;&nbsp; <b>NEGERI:</b> ${esc(school.negeri||'')}<br>
+      <b>KELAS</b> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: TAHUN ${cls.tahun||''} ${esc((cls.nama||'').toUpperCase())} &nbsp;&nbsp;&nbsp; <b>TAHUN:</b> ${year}
+    </div>
+    ${clone.outerHTML}
+    <div class="sign">
+      <div class="s">DISEDIAKAN OLEH<div class="line">${esc(school.penyelaras&&school.penyelaras!=='—'?school.penyelaras:'……………………………………')}<br>PENYELARAS RMT</div></div>
+      <div class="s">DISAHKAN OLEH<div class="line">${esc(school.pkhem&&school.pkhem!=='—'?school.pkhem:'……………………………………')}<br>GPK HEM</div></div>
+    </div>
+  </body></html>`;
+  const fr=document.createElement('iframe');
+  fr.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0';
+  document.body.appendChild(fr); fr.srcdoc=html;
+  fr.onload=()=>{ setTimeout(()=>{ try{fr.contentWindow.focus();fr.contentWindow.print();}
+    catch(e){toast('Gagal cetak: '+e.message,'err');} setTimeout(()=>fr.remove(),3000); },200); };
+}
+
 /* Cetakan rasmi C8 — dokumen berasingan, A4 landscape, gaya borang KPM */
 async function printC8(){
   const src=$('.c8');

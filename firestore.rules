@@ -46,6 +46,14 @@ service cloud.firestore {
       allow read, write: if isSignedIn();
     }
 
+    // borang C1 (fizikal) & C2 (akademik) — sama seperti attendance
+    match /fizikal/{id} {
+      allow read, write: if isSignedIn();
+    }
+    match /akademik/{id} {
+      allow read, write: if isSignedIn();
+    }
+
     // holidays & activity_logs
     match /holidays/{id} {
       allow read:  if isSignedIn();

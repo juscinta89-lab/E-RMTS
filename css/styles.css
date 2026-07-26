@@ -339,3 +339,22 @@ table.c8 thead th{background:#D9DEE2;color:#1B2430;font-weight:700;padding:4px 3
 .icon-btn svg{width:18px;height:18px;flex:none}
 .btn svg{width:16px;height:16px;flex:none}
 td .btn-sm{margin:1px 2px}
+
+/* =========================================================
+   C8: kolum BIL + NAMA melekat kiri semasa skrol mendatar
+   ========================================================= */
+table.c8 .col-bil{position:sticky;left:0}
+table.c8 .col-nama{position:sticky;left:34px}
+table.c8 thead th.col-bil,table.c8 thead th.col-nama{z-index:8}
+table.c8 tbody td.col-bil,table.c8 tbody td.name{background:var(--card);z-index:4}
+table.c8 tbody td.name{box-shadow:2px 0 0 #9aa4ad}
+table.c8 thead th.col-nama{box-shadow:2px 0 0 #9aa4ad}
+table.c8 tfoot td:first-child{position:sticky;left:0;z-index:4}
+@media(max-width:600px){
+  .c8 .col-nama{min-width:140px}
+  .c8 tbody td.name{max-width:150px;overflow:hidden;text-overflow:ellipsis}
+}
+
+/* Input kecil dalam borang C1/C2 */
+input.mini{width:56px;padding:5px 4px;font-size:12px;text-align:center;border-radius:6px}
+.b-klas{font-size:10px;font-weight:700;white-space:nowrap}
