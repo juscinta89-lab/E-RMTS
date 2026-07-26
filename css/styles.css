@@ -329,3 +329,8 @@ table.c8 thead th{background:#D9DEE2;color:#1B2430;font-weight:700;padding:4px 3
   .page-head{gap:8px}
   .tbl-wrap{font-size:13px}
 }
+
+/* Fallback cetak halaman utama: sembunyi elemen UI */
+@media print{
+  .bottom-nav,.page-head,.c8-legend{display:none !important}
+}

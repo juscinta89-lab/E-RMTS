@@ -589,7 +589,7 @@ async function pageKehadiran(v){
   $('#c8-kelas').onchange=e=>{C8_STATE.kelasId=e.target.value;renderC8();};
   $('#c8-bulan').onchange=e=>{C8_STATE.month=+e.target.value;renderC8();};
   $('#c8-tahun').onchange=e=>{C8_STATE.year=+e.target.value;renderC8();};
-  $('#printC8').onclick=()=>window.print();
+  $('#printC8').onclick=printC8;
   renderC8();
 }
 
@@ -706,6 +706,83 @@ async function cycleCell(td){
     showSaved();
   }catch(e){ toast('Gagal simpan: '+e.message,'err'); }
 }
+/* Cetakan rasmi C8 — dokumen berasingan, A4 landscape, gaya borang KPM */
+async function printC8(){
+  const src=$('.c8');
+  if(!src){toast('Borang belum dipaparkan.','err');return;}
+  const {kelasId,year,month}=C8_STATE;
+  const [school,classes,users]=await Promise.all([DB.getSchool(),DB.getClasses(),DB.getUsers()]);
+  const cls=classes.find(c=>c.id===kelasId)||{};
+  const guru=users.find(u=>u.id===cls.guruId);
+
+  const clone=src.cloneNode(true);
+  const t=clone.querySelector('.c8-title'); if(t){const tr=t.closest('tr'); if(tr)tr.remove();}
+  // simbol rasmi borang: hadir = / , tidak hadir = X
+  clone.querySelectorAll('td.day').forEach(td=>{
+    if(td.classList.contains('present')) td.textContent='/';
+    else if(td.classList.contains('absent')) td.textContent='X';
+  });
+
+  const html=`<!DOCTYPE html><html lang="ms"><head><meta charset="utf-8"><title>Borang C8 — ${MONTHS[month]} ${year}</title><style>
+    @page{size:A4 landscape;margin:9mm}
+    *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    body{font-family:Arial,Helvetica,sans-serif;margin:0;color:#000;background:#fff}
+    .hd{display:flex;align-items:center;gap:10px;border:2px solid #000;border-bottom:none;padding:6px 10px}
+    .hd img{height:46px}
+    .hd .mid{flex:1;text-align:center}
+    .hd .t1{font-size:12px;font-weight:bold}
+    .hd .t2{font-size:15px;font-weight:bold;letter-spacing:1px;margin-top:2px}
+    .hd .tag{font-size:11px;font-weight:bold;border:1.5px solid #000;padding:3px 9px}
+    .info{display:flex;border:2px solid #000;border-bottom:none;border-top:1px solid #000;font-size:11px}
+    .info div{padding:4px 10px;border-right:1px solid #000}
+    .info div:last-child{border-right:none;flex:1}
+    table{border-collapse:collapse;width:100%;font-size:8.5px}
+    th,td{border:1px solid #000;text-align:center;padding:2px 1px}
+    thead th{background:#d9d9d9;font-weight:bold}
+    tbody td{height:16px}
+    td.name{text-align:left;padding:2px 4px;white-space:nowrap;font-weight:normal}
+    .vert{writing-mode:vertical-rl;transform:rotate(180deg);letter-spacing:1px}
+    td.we,th.we,td.hol,th.hol{background:#d9d9d9}
+    td.calc{font-weight:bold}
+    tfoot td{font-weight:bold;text-align:left;padding:2px 4px;background:#f0f0f0}
+    tfoot td[data-foot]{text-align:center}
+    .sign{display:flex;justify-content:space-between;margin-top:24px;font-size:11px;page-break-inside:avoid}
+    .sign .s{width:38%}
+    .sign .line{border-top:1px solid #000;margin-top:40px;padding-top:4px}
+  </style></head><body>
+    <div class="hd">
+      ${school.logo?`<img src="${school.logo}" alt="logo">`:''}
+      <div class="mid">
+        <div class="t1">${esc((school.nama||'').toUpperCase())}</div>
+        <div class="t2">REKOD KEHADIRAN MURID RMT</div>
+      </div>
+      <div class="tag">BORANG C8</div>
+    </div>
+    <div class="info">
+      <div><b>BULAN:</b> ${MONTHS[month].toUpperCase()} ${year}</div>
+      <div><b>KELAS:</b> TAHUN ${cls.tahun||''} ${esc((cls.nama||'').toUpperCase())}</div>
+      <div><b>GURU KELAS:</b> ${esc(guru?guru.nama.toUpperCase():'—')}</div>
+    </div>
+    ${clone.outerHTML}
+    <div class="sign">
+      <div class="s">Disediakan oleh:
+        <div class="line">( ${esc(guru?guru.nama:'……………………………………')} )<br>Guru Kelas</div></div>
+      <div class="s">Disahkan oleh:
+        <div class="line">( ${esc(school.gb&&school.gb!=='—'?school.gb:'……………………………………')} )<br>Guru Besar</div></div>
+    </div>
+  </body></html>`;
+
+  const fr=document.createElement('iframe');
+  fr.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0';
+  document.body.appendChild(fr);
+  fr.srcdoc=html;
+  fr.onload=()=>{ setTimeout(()=>{
+    try{ fr.contentWindow.focus(); fr.contentWindow.print(); }
+    catch(e){ toast('Gagal buka cetakan: '+e.message,'err'); }
+    setTimeout(()=>fr.remove(),3000);
+  },200); };
+}
+
 function showSaving(){const s=$('#c8-save');if(s)s.innerHTML='<span class="spinner dark" style="width:14px;height:14px"></span> Menyimpan…';}
 function showSaved(){const s=$('#c8-save');if(s){s.textContent='✓ Tersimpan';setTimeout(()=>{if(s)s.textContent='';},1500);}}
 
