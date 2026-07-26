@@ -863,9 +863,9 @@ async function pageMurid(v){
       <td>${i+1}</td><td>${esc(s.nama)}</td><td>${esc(s.mykid||'—')}</td>
       <td>${s.jantina==='L'?'Lelaki':'Perempuan'}</td><td>${esc(clsName(s.kelasId))}</td>
       <td><span class="badge ${s.statusRMT==='Aktif'?'ok':'off'}">${esc(s.statusRMT)}</span></td>
-      <td class="no-print">
-        <button class="icon-btn" data-edit="${s.id}" title="Edit">${IC.edit}</button>
-        ${isAdmin()?`<button class="icon-btn" data-del="${s.id}" title="Padam">${IC.trash}</button>`:''}
+      <td class="no-print" style="white-space:nowrap">
+        <button class="btn btn-sm" data-edit="${s.id}">Edit</button>
+        ${isAdmin()?`<button class="btn btn-sm btn-danger" data-del="${s.id}">Padam</button>`:''}
       </td></tr>`).join('') || `<tr><td colspan="7">${emptyState('Tiada murid dijumpai.')}</td></tr>`;
 
   v.innerHTML=`
@@ -883,7 +883,7 @@ async function pageMurid(v){
       <span style="align-self:center;color:var(--muted);font-size:13px">${list.length} murid</span>
     </div>
     <div class="tbl-wrap"><table class="data">
-      <thead><tr><th>Bil</th><th>Nama Penuh</th><th>No. MyKid</th><th>Jantina</th><th>Kelas</th><th>Status RMT</th><th class="no-print"></th></tr></thead>
+      <thead><tr><th>Bil</th><th>Nama Penuh</th><th>No. MyKid</th><th>Jantina</th><th>Kelas</th><th>Status RMT</th><th class="no-print">Tindakan</th></tr></thead>
       <tbody>${rows}</tbody></table></div>`;
 
   $('#f-q').oninput=e=>{MURID_FILTER.q=e.target.value;pageMurid(v);};
@@ -977,14 +977,14 @@ async function pageKelas(v){
   const rows=classes.map((c,i)=>`<tr>
     <td>${i+1}</td><td>Tahun ${c.tahun} ${esc(c.nama)}</td><td>${esc(gName(c.guruId))}</td>
     <td><span class="badge b">${count(c.id)} murid</span></td>
-    <td class="no-print"><button class="icon-btn" data-edit="${c.id}">${IC.edit}</button>
-      <button class="icon-btn" data-del="${c.id}">${IC.trash}</button></td></tr>`).join('')
+    <td class="no-print" style="white-space:nowrap"><button class="btn btn-sm" data-edit="${c.id}">Edit</button>
+      <button class="btn btn-sm btn-danger" data-del="${c.id}">Padam</button></td></tr>`).join('')
     || `<tr><td colspan="5">${emptyState('Belum ada kelas.')}</td></tr>`;
   v.innerHTML=`
     <div class="page-head"><h2>Maklumat Kelas</h2><div class="spacer"></div>
       <button class="btn btn-primary" id="addBtn">${IC.plus} Tambah Kelas</button></div>
     <div class="tbl-wrap"><table class="data"><thead><tr>
-      <th>Bil</th><th>Kelas</th><th>Guru Kelas</th><th>Bil. Murid</th><th class="no-print"></th></tr></thead>
+      <th>Bil</th><th>Kelas</th><th>Guru Kelas</th><th>Bil. Murid</th><th class="no-print">Tindakan</th></tr></thead>
       <tbody>${rows}</tbody></table></div>`;
   $('#addBtn').onclick=()=>classModal(null,users,v);
   $$('[data-edit]').forEach(b=>b.onclick=()=>classModal(classes.find(c=>c.id===b.dataset.edit),users,v));
@@ -1024,13 +1024,13 @@ async function pageGuru(v){
     <td>${i+1}</td><td>${esc(u.nama)}</td><td>${esc(u.role)}</td><td>${esc(u.username||u.email||'—')}</td>
     <td>${esc(u.kelasId?clsName(u.kelasId):'—')}</td>
     <td><span class="badge ${u.aktif?'ok':'off'}">${u.aktif?'Aktif':'Tidak Aktif'}</span></td>
-    <td class="no-print"><button class="icon-btn" data-edit="${u.id}">${IC.edit}</button>
-      <button class="icon-btn" data-del="${u.id}">${IC.trash}</button></td></tr>`).join('');
+    <td class="no-print" style="white-space:nowrap"><button class="btn btn-sm" data-edit="${u.id}">Edit</button>
+      <button class="btn btn-sm btn-danger" data-del="${u.id}">Padam</button></td></tr>`).join('');
   v.innerHTML=`
     <div class="page-head"><h2>Guru & Pengguna</h2><div class="spacer"></div>
       <button class="btn btn-primary" id="addBtn">${IC.plus} Tambah Pengguna</button></div>
     <div class="tbl-wrap"><table class="data"><thead><tr>
-      <th>Bil</th><th>Nama</th><th>Jawatan / Role</th><th>ID / Emel</th><th>Kelas</th><th>Status</th><th class="no-print"></th></tr></thead>
+      <th>Bil</th><th>Nama</th><th>Jawatan / Role</th><th>ID / Emel</th><th>Kelas</th><th>Status</th><th class="no-print">Tindakan</th></tr></thead>
       <tbody>${rows}</tbody></table></div>
     ${USE_FIREBASE?'<p style="color:var(--muted);font-size:12px;margin-top:10px">Nota: daftarkan <b>emel akaun Google</b> setiap guru di sini. Bila mereka klik "Log masuk dengan Google" guna emel yang sama, mereka terus dapat peranan & kelas yang ditetapkan. Tak perlu cipta kata laluan.</p>':''}`;
   $('#addBtn').onclick=()=>userModal(null,classes,v);
@@ -1153,7 +1153,7 @@ async function pageKalendar(v){
       <span>${n}</span></label>`).join('');
 
   const holRows=holidays.map(h=>`<tr><td>${esc(h.date)}</td><td>${esc(h.nama)}</td>
-      <td class="no-print"><button class="icon-btn" data-del="${h.id}">${IC.trash}</button></td></tr>`).join('')
+      <td class="no-print"><button class="btn btn-sm btn-danger" data-del="${h.id}">Padam</button></td></tr>`).join('')
       || `<tr><td colspan="3" style="color:var(--muted);padding:14px">Belum ada cuti direkod.</td></tr>`;
 
   v.innerHTML=`
@@ -1181,7 +1181,7 @@ async function pageKalendar(v){
       </div>
       <button class="btn" id="k-add">${IC.plus} Tambah Cuti</button>
       <div class="tbl-wrap" style="margin-top:14px"><table class="data">
-        <thead><tr><th>Tarikh</th><th>Nama</th><th class="no-print"></th></tr></thead>
+        <thead><tr><th>Tarikh</th><th>Nama</th><th class="no-print">Tindakan</th></tr></thead>
         <tbody id="k-hol">${holRows}</tbody></table></div>
     </div>`;
 

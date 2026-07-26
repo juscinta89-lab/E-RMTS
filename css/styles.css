@@ -334,3 +334,8 @@ table.c8 thead th{background:#D9DEE2;color:#1B2430;font-weight:700;padding:4px 3
 @media print{
   .bottom-nav,.page-head,.c8-legend{display:none !important}
 }
+
+/* BAIKI: SVG dalam butang wajib ada saiz (sebelum ini ikon Edit/Padam tak kelihatan) */
+.icon-btn svg{width:18px;height:18px;flex:none}
+.btn svg{width:16px;height:16px;flex:none}
+td .btn-sm{margin:1px 2px}
