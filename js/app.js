@@ -185,6 +185,28 @@ const DB = {
     if(USE_FIREBASE){await fbDB.collection('students').doc(id).delete();return;}
     DEMO.students=DEMO.students.filter(s=>s.id!==id); saveDemo(DEMO);
   },
+  async getAttDoc(kelasId,year,month){
+    const key=`${kelasId}_${year}_${month}`;
+    if(USE_FIREBASE){const d=await fbDB.collection('attendance').doc(key).get();
+      return d.exists?{records:d.data().records||{},sah:d.data().sah||null}:{records:{},sah:null};}
+    const dd=DEMO.attendance[key]; return dd?{records:dd.records||{},sah:dd.sah||null}:{records:{},sah:null};
+  },
+  /* LOG AKTIVITI */
+  async addLog(aksi,detail){
+    try{
+      const rec={t:new Date().toISOString(),oleh:CURRENT?CURRENT.nama:'?',aksi,detail:detail||''};
+      if(USE_FIREBASE){await fbDB.collection('activity_logs').add(rec);return;}
+      DEMO.logs=DEMO.logs||[]; DEMO.logs.unshift(rec);
+      if(DEMO.logs.length>500)DEMO.logs.length=500; saveDemo(DEMO);
+    }catch(e){/* log tidak menghalang operasi */}
+  },
+  async listLogs(n=100){
+    if(USE_FIREBASE){
+      const q=await fbDB.collection('activity_logs').orderBy('t','desc').limit(n).get();
+      return q.docs.map(d=>d.data());
+    }
+    return (DEMO.logs||[]).slice(0,n);
+  },
   async getSah(kelasId,year,month){
     const key=`${kelasId}_${year}_${month}`;
     if(USE_FIREBASE){const d=await fbDB.collection('attendance').doc(key).get();
@@ -454,7 +476,7 @@ function renderAuth(mode){
       if(p1.length<6){toast('Kata laluan minimum 6 aksara.','err');return;}
       if(p1!==p2){toast('Kata laluan tidak sepadan.','err');return;}
       btn.disabled=true; btn.innerHTML='<span class="spinner"></span>';
-      try{ await doRegister(nama,email,p1); toast('Akaun berjaya didaftar!','ok'); enterApp(); }
+      try{ await doRegister(nama,email,p1); DB.addLog('Daftar akaun',email); toast('Akaun berjaya didaftar!','ok'); enterApp(); }
       catch(e){ toast(authErr(e),'err'); btn.disabled=false; btn.textContent='Daftar Akaun'; }
     };
     $('#rg-btn').onclick=reg;
@@ -481,7 +503,7 @@ function renderAuth(mode){
   if(USE_FIREBASE){
     $('#lg-google').onclick=async()=>{
       const gb=$('#lg-google'); gb.disabled=true; gb.innerHTML='<span class="spinner dark"></span>';
-      try{ await doGoogleLogin(); if(CURRENT) enterApp(); }
+      try{ await doGoogleLogin(); if(CURRENT){DB.addLog('Log masuk (Google)','');enterApp();} }
       catch(e){ toast(authErr(e),'err'); gb.disabled=false; gb.innerHTML=`${googleG} Log masuk dengan Google`; }
     };
   }
@@ -489,7 +511,7 @@ function renderAuth(mode){
     const btn=$('#lg-btn'); const u=$('#lg-user').value.trim(); const p=$('#lg-pass').value;
     if(!u||!p){toast('Isi emel dan kata laluan.','err');return;}
     btn.disabled=true; btn.innerHTML='<span class="spinner"></span>';
-    try{ await doLogin(u,p); enterApp(); }
+    try{ await doLogin(u,p); DB.addLog('Log masuk',''); enterApp(); }
     catch(e){ toast(authErr(e),'err'); btn.disabled=false; btn.textContent='Log Masuk'; }
   };
   $('#lg-btn').onclick=submit;
@@ -674,6 +696,7 @@ async function pageKehadiran(v){
 
   v.innerHTML=`
     <div class="page-head"><h2>Rekod Kehadiran Murid RMT</h2><div class="spacer"></div>
+      ${isAdmin()?`<button class="btn" id="printC8All">${IC.print} Cetak Semua Kelas</button>`:''}
       <button class="btn btn-blue" id="printC8">${IC.print} Cetak / PDF</button></div>
     <div class="c8-toolbar no-print">
       <div class="field"><label>Kelas</label><select id="c8-kelas">${clsOpts}</select></div>
@@ -694,6 +717,7 @@ async function pageKehadiran(v){
   $('#c8-bulan').onchange=e=>{C8_STATE.month=+e.target.value;renderC8();};
   $('#c8-tahun').onchange=e=>{C8_STATE.year=+e.target.value;renderC8();};
   $('#printC8').onclick=printC8;
+  if($('#printC8All'))$('#printC8All').onclick=printC8All;
   renderC8();
 }
 
@@ -814,7 +838,7 @@ async function renderC8(){
     const ok=await confirmDialog(`Sahkan kehadiran ${MONTHS[month]} ${year} untuk kelas ini? Selepas disahkan, data TIDAK BOLEH diubah lagi (hanya Admin boleh membukanya semula). Pastikan semua hari telah ditanda dengan betul.`);
     if(!ok) return;
     await DB.setSah(kelasId,year,month,{oleh:CURRENT.id,olehNama:CURRENT.nama,tarikh:new Date().toISOString()});
-    toast('Kehadiran bulan ini telah disahkan & dikunci.','ok');
+    DB.addLog('Sahkan kehadiran',`${MONTHS[month]} ${year}`); toast('Kehadiran bulan ini telah disahkan & dikunci.','ok');
     renderC8();
   };
   const unsahBtn=$('#c8-unsah');
@@ -822,7 +846,7 @@ async function renderC8(){
     const ok=await confirmDialog('Buka semula pengesahan? Guru akan dapat mengubah kehadiran bulan ini semula.');
     if(!ok) return;
     await DB.setSah(kelasId,year,month,null);
-    toast('Pengesahan dibuka semula.','info');
+    DB.addLog('Buka pengesahan',`${MONTHS[month]} ${year}`); toast('Pengesahan dibuka semula.','info');
     renderC8();
   };
 }
@@ -1051,46 +1075,64 @@ async function prosesNaikKelas(){
 /* ---------------------------------------------------------
    HALAMAN: Rumusan Keseluruhan Kehadiran
 --------------------------------------------------------- */
-const RUM_STATE={year:new Date().getFullYear(),month:new Date().getMonth()}; // month=-1 => setahun
+const RUM_STATE={jenis:'kelas',year:new Date().getFullYear(),month:new Date().getMonth(),kelasId:null};
+
+// Konteks tahun: kelas + murid aktif (guna snapshot utk sesi lama)
+async function yearContext(year){
+  const sesi=APP_CFG.sesi||new Date().getFullYear();
+  const snap = year<sesi ? await DB.getRoster(year) : null;
+  if(snap&&snap.students){
+    return {classes:snap.classes||[],
+      act:Object.entries(snap.students).map(([id,st])=>({id,...st})).filter(s=>s.statusRMT==='Aktif')};
+  }
+  const [cls,students]=await Promise.all([DB.getClasses(),DB.getStudents()]);
+  return {classes:cls, act:students.filter(s=>s.statusRMT==='Aktif')};
+}
 
 async function pageRumusan(v){
-  const yNow=new Date().getFullYear();
+  const classes=sortCls(await DB.getClasses());
+  if(!RUM_STATE.kelasId&&classes.length)RUM_STATE.kelasId=classes[0].id;
   const moOpts=`<option value="-1" ${RUM_STATE.month===-1?'selected':''}>Setahun (Jan–Dis)</option>`+
     MONTHS.map((m,i)=>`<option value="${i}" ${i===RUM_STATE.month?'selected':''}>${m}</option>`).join('');
   const yOpts=yearRange().map(y=>`<option ${y===RUM_STATE.year?'selected':''}>${y}</option>`).join('');
+  const kOpts=classes.map(c=>`<option value="${c.id}" ${c.id===RUM_STATE.kelasId?'selected':''}>Tahun ${c.tahun} ${esc(c.nama)}</option>`).join('');
   v.innerHTML=`
-    <div class="page-head"><h2>Rumusan Kehadiran</h2><div class="spacer"></div>
+    <div class="page-head"><h2>Rumusan &amp; Laporan</h2><div class="spacer"></div>
       <button class="btn btn-blue" id="printRum">${IC.print} Cetak / PDF</button></div>
     <div class="c8-toolbar no-print">
-      <div class="field"><label>Tempoh</label><select id="r-bulan">${moOpts}</select></div>
+      <div class="field"><label>Jenis laporan</label><select id="r-jenis">
+        <option value="kelas" ${RUM_STATE.jenis==='kelas'?'selected':''}>Rumusan ikut Kelas</option>
+        <option value="murid" ${RUM_STATE.jenis==='murid'?'selected':''}>Laporan Tahunan per Murid</option>
+        <option value="jantina" ${RUM_STATE.jenis==='jantina'?'selected':''}>Statistik Jantina &amp; Darjah</option>
+        <option value="status" ${RUM_STATE.jenis==='status'?'selected':''}>Status Pengesahan Bulanan</option>
+      </select></div>
+      <div class="field" id="rf-bulan"><label>Tempoh</label><select id="r-bulan">${moOpts}</select></div>
+      <div class="field" id="rf-kelas"><label>Kelas</label><select id="r-kelas">${kOpts}</select></div>
       <div class="field"><label>Tahun</label><select id="r-tahun">${yOpts}</select></div>
     </div>
     <div id="r-holder"></div>
-    <p class="no-print" style="color:var(--muted);font-size:12px;margin-top:10px">
-      % kehadiran dikira daripada sel yang telah ditanda dalam Borang C8 (hadir ÷ (hadir + tidak hadir)).</p>`;
+    <p class="no-print" style="color:var(--muted);font-size:12px;margin-top:10px" id="r-nota"></p>`;
+  const sync=()=>{
+    $('#rf-bulan').style.display=(RUM_STATE.jenis==='kelas'||RUM_STATE.jenis==='jantina')?'':'none';
+    $('#rf-kelas').style.display=RUM_STATE.jenis==='murid'?'':'none';
+  };
+  $('#r-jenis').onchange=e=>{RUM_STATE.jenis=e.target.value;sync();renderRumusan();};
   $('#r-bulan').onchange=e=>{RUM_STATE.month=+e.target.value;renderRumusan();};
+  $('#r-kelas').onchange=e=>{RUM_STATE.kelasId=e.target.value;renderRumusan();};
   $('#r-tahun').onchange=e=>{RUM_STATE.year=+e.target.value;renderRumusan();};
   $('#printRum').onclick=printRumusan;
-  renderRumusan();
+  sync(); renderRumusan();
 }
 
+/* ---- Jenis 1: Rumusan ikut kelas ---- */
 async function computeRumusan(){
   const {year,month}=RUM_STATE;
-  const sesi=APP_CFG.sesi||new Date().getFullYear();
-  let classes,act;
-  const snap = year<sesi ? await DB.getRoster(year) : null;
-  if(snap&&snap.students){
-    classes=snap.classes||[];
-    act=Object.entries(snap.students).map(([id,st])=>({id,...st})).filter(s=>s.statusRMT==='Aktif');
-  }else{
-    const [cls,students]=await Promise.all([DB.getClasses(),DB.getStudents()]);
-    classes=cls; act=students.filter(s=>s.statusRMT==='Aktif');
-  }
-  const list=sortCls(classes);
-  const rows=[]; let T={murid:0,h:0,x:0};
+  const ctx=await yearContext(year);
+  const list=sortCls(ctx.classes);
   const monthsToScan = month===-1 ? [...Array(12).keys()] : [month];
+  const rows=[]; let T={murid:0,h:0,x:0};
   for(const c of list){
-    const cs=act.filter(s=>s.kelasId===c.id);
+    const cs=ctx.act.filter(s=>s.kelasId===c.id);
     let h=0,x=0;
     for(const m of monthsToScan){
       const rec=await DB.getAttendance(c.id,year,m);
@@ -1098,57 +1140,164 @@ async function computeRumusan(){
         Object.values(r).forEach(mk=>{ if(mk==='H')h++; else if(mk==='X')x++; }); }
     }
     const tot=h+x;
-    rows.push({label:`Tahun ${c.tahun} ${c.nama}`,murid:cs.length,h,x,
-      pct: tot? +(h/tot*100).toFixed(1) : null});
+    rows.push({label:`Tahun ${c.tahun} ${c.nama}`,murid:cs.length,h,x,pct:tot?+(h/tot*100).toFixed(1):null});
     T.murid+=cs.length; T.h+=h; T.x+=x;
   }
-  const totAll=T.h+T.x;
-  return {rows,total:{...T,pct: totAll? +(T.h/totAll*100).toFixed(1):null},
-    label: month===-1 ? `TAHUN ${year} (JAN–DIS)` : `${MONTHS[month].toUpperCase()} ${year}`};
+  const tA=T.h+T.x;
+  return {rows,total:{...T,pct:tA?+(T.h/tA*100).toFixed(1):null},
+    label: month===-1?`TAHUN ${year} (JAN–DIS)`:`${MONTHS[month].toUpperCase()} ${year}`};
 }
-
 function rumTableHTML(data){
-  const tr=data.rows.map((r,i)=>`<tr>
-    <td>${i+1}</td><td style="text-align:left;padding-left:8px">${esc(r.label)}</td>
+  const tr=data.rows.map((r,i)=>`<tr><td>${i+1}</td>
+    <td style="text-align:left;padding-left:8px">${esc(r.label)}</td>
     <td>${r.murid}</td><td>${r.h}</td><td>${r.x}</td>
     <td><b>${r.pct==null?'—':r.pct+'%'}</b></td></tr>`).join('')
-    ||'<tr><td colspan="6" style="padding:16px;color:var(--muted)">Belum ada kelas.</td></tr>';
+    ||'<tr><td colspan="6" style="padding:16px">Tiada data.</td></tr>';
   const t=data.total;
-  return `<table class="c8" id="r-table">
-    <thead><tr><th>BIL</th><th>KELAS</th><th>BIL.<br>MURID</th><th>JUMLAH<br>HADIR</th>
-      <th>JUMLAH<br>TIDAK HADIR</th><th>%<br>KEHADIRAN</th></tr></thead>
+  return `<table class="c8" id="r-table"><thead><tr>
+    <th>BIL</th><th>KELAS</th><th>BIL.<br>MURID</th><th>JUMLAH<br>HADIR</th>
+    <th>JUMLAH<br>TIDAK HADIR</th><th>%<br>KEHADIRAN</th></tr></thead>
     <tbody>${tr}</tbody>
     <tfoot><tr><td colspan="2">JUMLAH KESELURUHAN</td>
       <td style="text-align:center">${t.murid}</td><td style="text-align:center">${t.h}</td>
-      <td style="text-align:center">${t.x}</td>
-      <td style="text-align:center">${t.pct==null?'—':t.pct+'%'}</td></tr></tfoot>
-  </table>`;
+      <td style="text-align:center">${t.x}</td><td style="text-align:center">${t.pct==null?'—':t.pct+'%'}</td></tr></tfoot></table>`;
+}
+
+/* ---- Jenis 2: Laporan tahunan per murid ---- */
+async function computeMurid(){
+  const {kelasId,year}=RUM_STATE;
+  const roster=await rosterStudents(kelasId,year);
+  const perMonth=[];
+  for(let m=0;m<12;m++) perMonth.push(await DB.getAttendance(kelasId,year,m));
+  const rows=roster.map(st=>{
+    const mh=[],mx=[]; let H=0,X=0;
+    for(let m=0;m<12;m++){
+      const r=perMonth[m][st.id]||{}; let h=0,x=0;
+      Object.values(r).forEach(k=>{if(k==='H')h++;else if(k==='X')x++;});
+      mh.push(h); mx.push(x); H+=h; X+=x;
+    }
+    return {nama:st.nama,mh,mx,H,X,pct:(H+X)?+(H/(H+X)*100).toFixed(1):null};
+  });
+  return rows;
+}
+function muridTableHTML(rows){
+  const head=MONTHS.map(m=>`<th>${m.slice(0,3).toUpperCase()}</th>`).join('');
+  const tr=rows.map((r,i)=>`<tr><td class="col-bil">${i+1}</td>
+    <td class="name col-nama">${esc(r.nama)}</td>
+    ${r.mh.map((h,m)=>`<td>${(h||r.mx[m])?h:''}</td>`).join('')}
+    <td><b>${r.H}</b></td><td>${r.X}</td>
+    <td><b>${r.pct==null?'—':r.pct+'%'}</b></td></tr>`).join('')
+    ||'<tr><td colspan="16" style="padding:16px">Tiada murid.</td></tr>';
+  return `<table class="c8" id="r-table"><thead><tr>
+    <th class="col-bil">BIL</th><th class="col-nama">NAMA MURID</th>${head}
+    <th>JUM<br>HADIR</th><th>JUM<br>T.HADIR</th><th>%</th></tr></thead>
+    <tbody>${tr}</tbody></table>`;
+}
+
+/* ---- Jenis 3: Statistik jantina & darjah ---- */
+async function computeJantina(){
+  const {year,month}=RUM_STATE;
+  const ctx=await yearContext(year);
+  const monthsToScan = month===-1 ? [...Array(12).keys()] : [month];
+  const tally={}; // sid -> {h,x}
+  for(const c of ctx.classes){
+    for(const m of monthsToScan){
+      const rec=await DB.getAttendance(c.id,year,m);
+      Object.entries(rec).forEach(([sid,r])=>{
+        tally[sid]=tally[sid]||{h:0,x:0};
+        Object.values(r).forEach(k=>{if(k==='H')tally[sid].h++;else if(k==='X')tally[sid].x++;});
+      });
+    }
+  }
+  const rows=[]; const T={bl:0,bp:0,hl:0,xl:0,hp:0,xp:0};
+  for(let thn=1;thn<=6;thn++){
+    const g={bl:0,bp:0,hl:0,xl:0,hp:0,xp:0};
+    ctx.act.filter(st=>st.tahun===thn).forEach(st=>{
+      const t=tally[st.id]||{h:0,x:0};
+      if(st.jantina==='P'){g.bp++;g.hp+=t.h;g.xp+=t.x;}
+      else{g.bl++;g.hl+=t.h;g.xl+=t.x;}
+    });
+    Object.keys(T).forEach(k=>T[k]+=g[k]);
+    const pct=(h,x)=>(h+x)?+(h/(h+x)*100).toFixed(1):null;
+    rows.push({thn,...g,pl:pct(g.hl,g.xl),pp:pct(g.hp,g.xp),pj:pct(g.hl+g.hp,g.xl+g.xp)});
+  }
+  const pct=(h,x)=>(h+x)?+(h/(h+x)*100).toFixed(1):null;
+  return {rows,total:{...T,pl:pct(T.hl,T.xl),pp:pct(T.hp,T.xp),pj:pct(T.hl+T.hp,T.xl+T.xp)},
+    label: month===-1?`TAHUN ${year} (JAN–DIS)`:`${MONTHS[month].toUpperCase()} ${year}`};
+}
+function jantinaTableHTML(d){
+  const f=v=>v==null?'—':v+'%';
+  const tr=d.rows.map(r=>`<tr><td><b>TAHUN ${r.thn}</b></td>
+    <td>${r.bl}</td><td>${r.bp}</td><td>${r.bl+r.bp}</td>
+    <td>${f(r.pl)}</td><td>${f(r.pp)}</td><td><b>${f(r.pj)}</b></td></tr>`).join('');
+  const t=d.total;
+  return `<table class="c8" id="r-table"><thead>
+    <tr><th rowspan="2">DARJAH</th><th colspan="3">BILANGAN MURID RMT</th><th colspan="3">% KEHADIRAN</th></tr>
+    <tr><th>LELAKI</th><th>PEREMPUAN</th><th>JUMLAH</th><th>LELAKI</th><th>PEREMPUAN</th><th>JUMLAH</th></tr></thead>
+    <tbody>${tr}</tbody>
+    <tfoot><tr><td>JUMLAH</td><td>${t.bl}</td><td>${t.bp}</td><td>${t.bl+t.bp}</td>
+      <td>${f(t.pl)}</td><td>${f(t.pp)}</td><td>${f(t.pj)}</td></tr></tfoot></table>`;
+}
+
+/* ---- Jenis 4: Status pengesahan bulanan ---- */
+async function computeStatus(){
+  const {year}=RUM_STATE;
+  const classes=sortCls(await DB.getClasses());
+  const rows=[];
+  for(const c of classes){
+    const cells=[];
+    for(let m=0;m<12;m++){
+      const doc=await DB.getAttDoc(c.id,year,m);
+      const ada=Object.keys(doc.records).length>0;
+      cells.push(doc.sah?'sah':(ada?'belum':'kosong'));
+    }
+    rows.push({label:`Tahun ${c.tahun} ${c.nama}`,cells});
+  }
+  return rows;
+}
+function statusTableHTML(rows){
+  const head=MONTHS.map(m=>`<th>${m.slice(0,3).toUpperCase()}</th>`).join('');
+  const sym={sah:'<span style="color:var(--ok);font-weight:800">✔</span>',
+             belum:'<span style="color:var(--warn);font-weight:800">⏳</span>',kosong:''};
+  const tr=rows.map((r,i)=>`<tr><td>${i+1}</td>
+    <td style="text-align:left;padding-left:8px;white-space:nowrap">${esc(r.label)}</td>
+    ${r.cells.map(c=>`<td>${sym[c]}</td>`).join('')}</tr>`).join('')
+    ||'<tr><td colspan="14" style="padding:16px">Belum ada kelas.</td></tr>';
+  return `<table class="c8" id="r-table"><thead><tr><th>BIL</th><th>KELAS</th>${head}</tr></thead>
+    <tbody>${tr}</tbody></table>
+    <p style="font-size:12px;color:var(--muted);margin-top:8px">✔ Disahkan guru kelas &nbsp;·&nbsp; ⏳ Ada rekod, belum disahkan &nbsp;·&nbsp; (kosong) Tiada rekod</p>`;
 }
 
 async function renderRumusan(){
   const holder=$('#r-holder'); if(!holder)return;
   holder.innerHTML='<div class="center-load"><span class="spinner dark"></span></div>';
-  const data=await computeRumusan();
-  holder.innerHTML=`<div class="c8-scroll">${rumTableHTML(data)}</div>`;
+  const j=RUM_STATE.jenis; const nota=$('#r-nota');
+  if(j==='kelas'){ holder.innerHTML=`<div class="c8-scroll">${rumTableHTML(await computeRumusan())}</div>`;
+    if(nota)nota.textContent='% dikira daripada sel yang ditanda dalam C8 (hadir ÷ (hadir + tidak hadir)).'; }
+  else if(j==='murid'){ holder.innerHTML=`<div class="c8-scroll">${muridTableHTML(await computeMurid())}</div>`;
+    if(nota)nota.textContent='Nombor dalam setiap bulan = jumlah hari HADIR murid pada bulan itu.'; }
+  else if(j==='jantina'){ holder.innerHTML=`<div class="c8-scroll">${jantinaTableHTML(await computeJantina())}</div>`;
+    if(nota)nota.textContent='Pecahan bilangan murid RMT dan % kehadiran mengikut jantina dan darjah.'; }
+  else{ holder.innerHTML=`<div class="c8-scroll">${statusTableHTML(await computeStatus())}</div>`;
+    if(nota)nota.textContent='Semakan pantas PK HEM/Guru Besar: kelas mana yang belum melengkap/mengesahkan kehadiran.'; }
 }
 
-async function printRumusan(){
-  const data=await computeRumusan();
+/* ---- Cetakan generik laporan rasmi ---- */
+async function printReport(tajuk,label,bodyHTML,orient,signL,signR){
   const school=await DB.getSchool();
-  const html=`<!DOCTYPE html><html lang="ms"><head><meta charset="utf-8"><title>Rumusan Kehadiran</title><style>
-    @page{size:A4 portrait;margin:12mm}
+  const html=`<!DOCTYPE html><html lang="ms"><head><meta charset="utf-8"><title>${tajuk}</title><style>
+    @page{size:A4 ${orient};margin:12mm}
     *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
     body{font-family:Arial,Helvetica,sans-serif;margin:0;color:#000}
     .top{display:flex;align-items:center;gap:12px}
     .top img{height:52px}
     .top .t{flex:1;text-align:center}
-    .t .t1{font-size:12px;font-weight:bold}
-    .t .t2{font-size:15px;font-weight:bold;letter-spacing:1px;margin-top:2px}
+    .t .t1{font-size:12px;font-weight:bold}.t .t2{font-size:15px;font-weight:bold;letter-spacing:1px;margin-top:2px}
     .t .t3{font-size:11px;margin-top:2px}
-    table{border-collapse:collapse;width:100%;font-size:11px;margin-top:12px}
-    th,td{border:1px solid #000;text-align:center;padding:5px 4px}
+    table{border-collapse:collapse;width:100%;font-size:10px;margin-top:12px}
+    th,td{border:1px solid #000;text-align:center;padding:4px 3px}
     thead th{background:#d9d9d9}
-    tbody td:nth-child(2){text-align:left;padding-left:8px}
+    td.name{text-align:left;padding-left:6px;white-space:nowrap}
     tfoot td{font-weight:bold;background:#f0f0f0}
     .sign{display:flex;justify-content:space-between;margin-top:30px;font-size:11px;page-break-inside:avoid}
     .sign .s{width:40%;text-align:center}
@@ -1156,21 +1305,36 @@ async function printRumusan(){
   </style></head><body>
     <div class="top">${school.logo?`<img src="${school.logo}">`:''}
       <div class="t"><div class="t1">${esc((school.nama||'').toUpperCase())}</div>
-        <div class="t2">RUMUSAN KEHADIRAN MURID RMT</div>
-        <div class="t3">${data.label}</div></div>
-      ${school.logo?'<div style="width:52px"></div>':''}
-    </div>
-    ${rumTableHTML(data).replace('class="c8" id="r-table"','')}
+        <div class="t2">${tajuk}</div><div class="t3">${label}</div></div>
+      ${school.logo?'<div style="width:52px"></div>':''}</div>
+    ${bodyHTML.replace('class="c8" id="r-table"','')}
     <div class="sign">
-      <div class="s">DISEDIAKAN OLEH<div class="line">${esc(school.penyelaras&&school.penyelaras!=='—'?school.penyelaras:'……………………………………')}<br>PENYELARAS RMT</div></div>
-      <div class="s">DISAHKAN OLEH<div class="line">${esc(school.gb&&school.gb!=='—'?school.gb:'……………………………………')}<br>GURU BESAR</div></div>
-    </div>
-  </body></html>`;
+      <div class="s">DISEDIAKAN OLEH<div class="line">${esc(signL||'……………………………………')}</div></div>
+      <div class="s">DISAHKAN OLEH<div class="line">${esc(signR||'……………………………………')}</div></div>
+    </div></body></html>`;
   const fr=document.createElement('iframe');
   fr.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0';
   document.body.appendChild(fr); fr.srcdoc=html;
-  fr.onload=()=>{ setTimeout(()=>{ try{fr.contentWindow.focus();fr.contentWindow.print();}
-    catch(e){toast('Gagal cetak: '+e.message,'err');} setTimeout(()=>fr.remove(),3000); },200); };
+  fr.onload=()=>{setTimeout(()=>{try{fr.contentWindow.focus();fr.contentWindow.print();}
+    catch(e){toast('Gagal cetak: '+e.message,'err');} setTimeout(()=>fr.remove(),3000);},200);};
+}
+
+async function printRumusan(){
+  const school=await DB.getSchool();
+  const peny=school.penyelaras&&school.penyelaras!=='—'?school.penyelaras+'<br>PENYELARAS RMT':'……………………………………<br>PENYELARAS RMT';
+  const gb=school.gb&&school.gb!=='—'?school.gb+'<br>GURU BESAR':'……………………………………<br>GURU BESAR';
+  const j=RUM_STATE.jenis;
+  if(j==='kelas'){ const d=await computeRumusan();
+    await printReport('RUMUSAN KEHADIRAN MURID RMT',d.label,rumTableHTML(d),'portrait',peny,gb); }
+  else if(j==='murid'){ const classes=await DB.getClasses();
+    const c=classes.find(x=>x.id===RUM_STATE.kelasId)||{};
+    await printReport('LAPORAN KEHADIRAN TAHUNAN MURID RMT',
+      `TAHUN ${c.tahun||''} ${esc((c.nama||'').toUpperCase())} · SESI ${RUM_STATE.year}`,
+      muridTableHTML(await computeMurid()),'landscape',peny,gb); }
+  else if(j==='jantina'){ const d=await computeJantina();
+    await printReport('STATISTIK KEHADIRAN RMT MENGIKUT JANTINA & DARJAH',d.label,jantinaTableHTML(d),'portrait',peny,gb); }
+  else{ await printReport('STATUS PENGESAHAN KEHADIRAN BULANAN',
+      `SESI ${RUM_STATE.year}`,statusTableHTML(await computeStatus()),'landscape',peny,gb); }
 }
 
 /* Cetakan rasmi C1/C2 — A4 potret, gaya borang KPM */
@@ -1222,6 +1386,98 @@ async function printBorang(){
   document.body.appendChild(fr); fr.srcdoc=html;
   fr.onload=()=>{ setTimeout(()=>{ try{fr.contentWindow.focus();fr.contentWindow.print();}
     catch(e){toast('Gagal cetak: '+e.message,'err');} setTimeout(()=>fr.remove(),3000); },200); };
+}
+
+
+/* Cetak pukal: borang C8 SEMUA kelas utk bulan/tahun semasa, satu kelas satu halaman */
+async function c8SectionHTML(school,users,cls,year,month){
+  const roster=await rosterStudents(cls.id,year);
+  const rec=await DB.getAttendance(cls.id,year,month);
+  const pm=month===0?11:month-1, py=month===0?year-1:year;
+  const recPrev=await DB.getAttendance(cls.id,py,pm);
+  const sah=await DB.getSah(cls.id,year,month);
+  const guru=users.find(u=>u.id===cls.guruId);
+  const nDays=daysInMonth(year,month);
+  const dayCells=[];
+  for(let d2=1;d2<=nDays;d2++)dayCells.push({d:d2,off:isWeekend(year,month,d2)||isHoliday(year,month,d2)});
+  const dayTh=dayCells.map(c=>`<th class="${c.off?'we':''}">${c.d}</th>`).join('');
+  let body=''; const footH={},footX={};
+  roster.forEach((st,i)=>{
+    const sr=rec[st.id]||{}; let h=0,x=0;
+    const cells=dayCells.map(c=>{
+      const mk=sr[c.d]; let sym='';
+      if(mk==='H'){sym='/';h++;footH[c.d]=(footH[c.d]||0)+1;}
+      else if(mk==='X'){sym='X';x++;footX[c.d]=(footX[c.d]||0)+1;}
+      return `<td class="${c.off?'we':''}">${sym}</td>`;}).join('');
+    const prev=recPrev[st.id]||{}; let xl=0; Object.values(prev).forEach(k=>{if(k==='X')xl++;});
+    body+=`<tr><td>${i+1}</td><td class="name">${esc(st.nama)}</td><td>${st.tahun}</td><td>${st.jantina}</td>
+      ${cells}<td><b>${h}</b></td><td>${x}</td><td>${xl}</td><td>${x+xl}</td></tr>`;
+  });
+  if(!roster.length)body=`<tr><td colspan="${8+nDays}" style="padding:12px">Tiada murid RMT aktif.</td></tr>`;
+  const foot=(obj,lbl)=>`<tr><td colspan="2" style="text-align:left;font-weight:bold">${lbl}</td><td colspan="2"></td>
+    ${dayCells.map(c=>`<td class="${c.off?'we':''}">${obj?(obj[c.d]||''):(c.off?'':roster.length)}</td>`).join('')}
+    <td colspan="4"></td></tr>`;
+  return `<div class="sec">
+    <div class="hd">${school.logo?`<img src="${school.logo}">`:''}
+      <div class="mid"><div class="t1">${esc((school.nama||'').toUpperCase())}</div>
+        <div class="t2">REKOD KEHADIRAN MURID RMT</div></div>
+      <div class="tag">BORANG C8</div></div>
+    <div class="info"><div><b>BULAN:</b> ${MONTHS[month].toUpperCase()} ${year}</div>
+      <div><b>KELAS:</b> TAHUN ${cls.tahun} ${esc((cls.nama||'').toUpperCase())}</div>
+      <div><b>GURU KELAS:</b> ${esc(guru?guru.nama.toUpperCase():'—')}</div>
+      ${sah?`<div><b>DISAHKAN:</b> ${esc(sah.olehNama)} · ${new Date(sah.tarikh).toLocaleDateString('ms-MY')}</div>`:''}</div>
+    <table><thead>
+      <tr><th rowspan="2">BIL</th><th rowspan="2">NAMA PENUH MURID</th>
+        <th rowspan="2"><span class="vert">TAHUN</span></th><th rowspan="2"><span class="vert">JANTINA</span></th>
+        <th colspan="${nDays}">BULAN : ${MONTHS[month].toUpperCase()}</th>
+        <th rowspan="2"><span class="vert">JUMLAH HARI</span></th><th colspan="3">TIDAK HADIR</th></tr>
+      <tr>${dayTh}<th>BULAN<br>SEMASA</th><th>BULAN<br>LEPAS</th><th>JUMLAH<br>SEMUA</th></tr></thead>
+    <tbody>${body}</tbody>
+    <tfoot>${foot(footX,'JUMLAH MURID TIDAK HADIR')}${foot(footH,'JUMLAH MURID HADIR')}${foot(null,'JUMLAH KEHADIRAN SEPATUTNYA')}</tfoot></table>
+    <div class="sign"><div class="s">Disediakan oleh:<div class="line">( ${esc(guru?guru.nama:'……………………………………')} )<br>Guru Kelas</div></div>
+      <div class="s">Disahkan oleh:<div class="line">( ${esc(school.gb&&school.gb!=='—'?school.gb:'……………………………………')} )<br>Guru Besar</div></div></div>
+  </div>`;
+}
+
+async function printC8All(){
+  const {year,month}=C8_STATE;
+  const btn=$('#printC8All'); if(btn){btn.disabled=true;btn.innerHTML='<span class="spinner dark"></span> Menjana…';}
+  try{
+    const [school,users,classes]=await Promise.all([DB.getSchool(),DB.getUsers(),DB.getClasses()]);
+    const list=sortCls(classes);
+    let secs='';
+    for(const c of list) secs+=await c8SectionHTML(school,users,c,year,month);
+    const html=`<!DOCTYPE html><html lang="ms"><head><meta charset="utf-8"><title>C8 Semua Kelas — ${MONTHS[month]} ${year}</title><style>
+      @page{size:A4 landscape;margin:9mm}
+      *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+      body{font-family:Arial,Helvetica,sans-serif;margin:0;color:#000}
+      .sec{page-break-after:always}
+      .sec:last-child{page-break-after:auto}
+      .hd{display:flex;align-items:center;gap:10px;border:2px solid #000;border-bottom:none;padding:6px 10px}
+      .hd img{height:44px}.hd .mid{flex:1;text-align:center}
+      .hd .t1{font-size:12px;font-weight:bold}.hd .t2{font-size:15px;font-weight:bold;letter-spacing:1px}
+      .hd .tag{font-size:11px;font-weight:bold;border:1.5px solid #000;padding:3px 9px}
+      .info{display:flex;border:2px solid #000;border-bottom:none;border-top:1px solid #000;font-size:11px}
+      .info div{padding:4px 10px;border-right:1px solid #000}.info div:last-child{border-right:none;flex:1}
+      table{border-collapse:collapse;width:100%;font-size:8.5px}
+      th,td{border:1px solid #000;text-align:center;padding:2px 1px}
+      thead th{background:#d9d9d9;font-weight:bold}
+      tbody td{height:15px}
+      td.name{text-align:left;padding:2px 4px;white-space:nowrap}
+      .vert{writing-mode:vertical-rl;transform:rotate(180deg);letter-spacing:1px}
+      td.we,th.we{background:#d9d9d9}
+      tfoot td{background:#f0f0f0}
+      .sign{display:flex;justify-content:space-between;margin-top:18px;font-size:10px;page-break-inside:avoid}
+      .sign .s{width:38%}.sign .line{border-top:1px solid #000;margin-top:32px;padding-top:4px}
+    </style></head><body>${secs}</body></html>`;
+    const fr=document.createElement('iframe');
+    fr.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0';
+    document.body.appendChild(fr); fr.srcdoc=html;
+    fr.onload=()=>{setTimeout(()=>{try{fr.contentWindow.focus();fr.contentWindow.print();}
+      catch(e){toast('Gagal cetak: '+e.message,'err');} setTimeout(()=>fr.remove(),4000);},250);};
+    DB.addLog('Cetak pukal C8',`${MONTHS[month]} ${year} (${list.length} kelas)`);
+  }catch(e){ toast(authErr(e),'err'); }
+  if(btn){btn.disabled=false;btn.innerHTML=IC.print+' Cetak Semua Kelas';}
 }
 
 /* Cetakan rasmi C8 — dokumen berasingan, A4 landscape, gaya borang KPM */
@@ -1390,7 +1646,7 @@ async function pageMurid(v){
   if($('#impBtn'))$('#impBtn').onclick=()=>importCSVModal(classes,v);
   $$('[data-edit]').forEach(b=>b.onclick=()=>studentModal(students.find(s=>s.id===b.dataset.edit),classes,v));
   $$('[data-del]').forEach(b=>b.onclick=async()=>{
-    if(await confirmDialog('Padam murid ini?')){await DB.delStudent(b.dataset.del);toast('Murid dipadam','ok');pageMurid(v);}});
+    if(await confirmDialog('Padam murid ini?')){await DB.delStudent(b.dataset.del);DB.addLog('Padam murid',b.dataset.del);toast('Murid dipadam','ok');pageMurid(v);}});
 }
 
 function studentModal(s,classes,v){
@@ -1422,7 +1678,7 @@ function studentModal(s,classes,v){
     const nama=$('#m-nama').value.trim(); if(!nama){toast('Nama wajib diisi','err');return;}
     const obj={...(isEdit?{id:s.id}:{}),nama,mykid:$('#m-kid').value.trim(),jantina:$('#m-jan').value,
       tahun:+$('#m-thn').value,kelasId:$('#m-kelas').value,statusRMT:$('#m-status').value};
-    await DB.saveStudent(obj); closeModal(); toast('Murid disimpan','ok'); pageMurid(v);
+    await DB.saveStudent(obj); DB.addLog(isEdit?'Edit murid':'Tambah murid',obj.nama); closeModal(); toast('Murid disimpan','ok'); pageMurid(v);
   };
 }
 
@@ -1460,7 +1716,7 @@ function importCSVModal(classes,v){
         tahun,kelasId:cls?cls.id:(classes[0]?.id||''),statusRMT:'Aktif'});
       ok++;
     }
-    closeModal(); toast(ok+' murid diimport','ok'); pageMurid(v);
+    DB.addLog('Import CSV',ok+' murid'); closeModal(); toast(ok+' murid diimport','ok'); pageMurid(v);
   };
 }
 
@@ -1487,7 +1743,7 @@ async function pageKelas(v){
   $('#addBtn').onclick=()=>classModal(null,users,v);
   $$('[data-edit]').forEach(b=>b.onclick=()=>classModal(classes.find(c=>c.id===b.dataset.edit),users,v));
   $$('[data-del]').forEach(b=>b.onclick=async()=>{
-    if(await confirmDialog('Padam kelas ini?')){await DB.delClass(b.dataset.del);toast('Kelas dipadam','ok');pageKelas(v);}});
+    if(await confirmDialog('Padam kelas ini?')){await DB.delClass(b.dataset.del);DB.addLog('Padam kelas',b.dataset.del);toast('Kelas dipadam','ok');pageKelas(v);}});
 }
 function classModal(c,users,v){
   const isEdit=!!c; c=c||{tahun:1,nama:'',guruId:''};
@@ -1508,7 +1764,7 @@ function classModal(c,users,v){
   $('#c-save').onclick=async()=>{
     const nama=$('#c-nama').value.trim(); if(!nama){toast('Nama kelas wajib','err');return;}
     await DB.saveClass({...(isEdit?{id:c.id}:{}),tahun:+$('#c-thn').value,nama,guruId:$('#c-guru').value||null});
-    closeModal(); toast('Kelas disimpan','ok'); pageKelas(v);
+    DB.addLog(isEdit?'Edit kelas':'Tambah kelas',nama); closeModal(); toast('Kelas disimpan','ok'); pageKelas(v);
   };
 }
 
@@ -1534,7 +1790,7 @@ async function pageGuru(v){
   $('#addBtn').onclick=()=>userModal(null,classes,v);
   $$('[data-edit]').forEach(b=>b.onclick=()=>userModal(users.find(u=>u.id===b.dataset.edit),classes,v));
   $$('[data-del]').forEach(b=>b.onclick=async()=>{
-    if(await confirmDialog('Padam pengguna ini?')){await DB.delUser(b.dataset.del);toast('Pengguna dipadam','ok');pageGuru(v);}});
+    if(await confirmDialog('Padam pengguna ini?')){await DB.delUser(b.dataset.del);DB.addLog('Padam pengguna',b.dataset.del);toast('Pengguna dipadam','ok');pageGuru(v);}});
 }
 function userModal(u,classes,v){
   const isEdit=!!u; u=u||{role:'Guru Kelas',aktif:true};
@@ -1571,7 +1827,7 @@ function userModal(u,classes,v){
       username:$('#u-user').value.trim(),email,tel:$('#u-tel').value.trim(),
       aktif:$('#u-aktif').value==='1'};
     if(!USE_FIREBASE)obj.password=$('#u-pass').value;
-    await DB.saveUser(obj); closeModal(); toast('Pengguna disimpan','ok'); pageGuru(v);
+    await DB.saveUser(obj); DB.addLog(isEdit?'Edit pengguna':'Tambah pengguna',obj.nama+' ('+obj.role+')'); closeModal(); toast('Pengguna disimpan','ok'); pageGuru(v);
   };
 }
 
@@ -1637,6 +1893,14 @@ async function pageTetapan(v){
         <label class="btn btn-ghost" style="cursor:pointer">⬆ Pulihkan dari Backup
           <input type="file" id="s-restore" accept=".json" style="display:none"></label>
       </div>
+    </div>
+
+    <div class="card" style="max-width:640px;margin-top:18px">
+      <h3 style="margin:0 0 6px">Log Aktiviti</h3>
+      <p style="color:var(--muted);font-size:13px;margin:0 0 12px">
+        Jejak audit: siapa buat apa dan bila (100 terkini).</p>
+      <button class="btn btn-sm" id="s-loglihat">Papar Log</button>
+      <div id="s-logbox" style="margin-top:12px"></div>
     </div>`;
 
   $('#s-logo-file').onchange=e=>{ const f=e.target.files[0]; if(!f)return;
@@ -1651,7 +1915,19 @@ async function pageTetapan(v){
     await DB.saveSchool({nama:$('#s-nama').value,kod:$('#s-kod').value,daerah:$('#s-daerah').value,
       negeri:$('#s-negeri').value,tel:$('#s-tel').value,alamat:$('#s-alamat').value,email:$('#s-email').value,
       gb:$('#s-gb').value,pkhem:$('#s-pkhem').value,penyelaras:$('#s-peny').value,logo:logoData});
+    DB.addLog('Ubah tetapan sekolah','');
     toast('Tetapan disimpan','ok');
+  };
+
+  /* --- Log Aktiviti --- */
+  $('#s-loglihat').onclick=async()=>{
+    const box=$('#s-logbox'); box.innerHTML='<span class="spinner dark"></span>';
+    const logs=await DB.listLogs(100);
+    box.innerHTML=logs.length?`<div class="tbl-wrap" style="max-height:320px;overflow:auto"><table class="data">
+      <thead><tr><th>Masa</th><th>Pengguna</th><th>Aksi</th><th>Butiran</th></tr></thead>
+      <tbody>${logs.map(l=>`<tr><td style="white-space:nowrap">${new Date(l.t).toLocaleString('ms-MY')}</td>
+        <td>${esc(l.oleh)}</td><td>${esc(l.aksi)}</td><td>${esc(l.detail)}</td></tr>`).join('')}</tbody>
+      </table></div>`:'<p style="color:var(--muted)">Tiada log lagi.</p>';
   };
 
   /* --- Naik Kelas --- */
@@ -1662,6 +1938,7 @@ async function pageTetapan(v){
     const btn=$('#s-promote'); btn.disabled=true; btn.innerHTML='<span class="spinner"></span> Memproses…';
     try{
       const r=await prosesNaikKelas();
+      DB.addLog('Proses naik kelas',`sesi ${r.sesi}→${r.sesi+1}: ${r.naik} naik, ${r.tamat} tamat`);
       toast(`Selesai! ${r.naik} murid naik kelas, ${r.tamat} murid Tahun 6 tamat.`+(r.tiadaKelas?` ${r.tiadaKelas} murid tiada kelas padanan — sila tetapkan kelas di Maklumat Murid.`:''),'ok');
       pageTetapan(v);
     }catch(e){ toast(authErr(e),'err'); btn.disabled=false; btn.textContent='Proses Naik Kelas'; }
@@ -1677,6 +1954,7 @@ async function pageTetapan(v){
       const url=URL.createObjectURL(blob); const a=document.createElement('a');
       a.href=url; a.download=nama; document.body.appendChild(a); a.click(); a.remove();
       URL.revokeObjectURL(url);
+      DB.addLog('Muat turun backup',nama);
       toast('Backup dimuat turun: '+nama,'ok');
     }catch(e){ toast(authErr(e),'err'); }
     btn.disabled=false; btn.textContent='⬇ Muat Turun Backup';
@@ -1693,6 +1971,7 @@ async function pageTetapan(v){
       const bk=JSON.parse(txt);
       await DB.restoreAll(bk);
       await loadConfig();
+      DB.addLog('Pulihkan dari backup',f.name);
       toast('Data berjaya dipulihkan dari backup!','ok');
       pageTetapan(v);
     }catch(err){ toast('Gagal pulihkan: '+(err.message||err),'err'); }
