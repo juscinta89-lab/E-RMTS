@@ -318,6 +318,8 @@ const DB = {
 --------------------------------------------------------- */
 let CURRENT=null; // {id,nama,role,kelasId,...}
 const isAdmin = ()=> CURRENT && ['Administrator','Guru Besar','PK HEM'].includes(CURRENT.role);
+// Guru RMT menguruskan program RMT seluruh sekolah — akses semua kelas utk kehadiran/borang
+const seesAllClasses = ()=> isAdmin() || (CURRENT && CURRENT.role==='Guru RMT');
 
 // Konfigurasi kalendar global (hari cuti mingguan + cuti/kelepasan am)
 // restDays: nombor hari (0=Ahad,1=Isnin,...,6=Sabtu) yang BUKAN hari persekolahan.
@@ -683,7 +685,7 @@ const C8_STATE={kelasId:null,year:new Date().getFullYear(),month:new Date().getM
 
 async function pageKehadiran(v){
   const classes=await DB.getClasses();
-  let allowed = sortCls(isAdmin() ? classes : classes.filter(c=>c.id===CURRENT.kelasId||c.guruId===CURRENT.id));
+  let allowed = sortCls(seesAllClasses() ? classes : classes.filter(c=>c.id===CURRENT.kelasId||c.guruId===CURRENT.id));
   if(!allowed.length){
     v.innerHTML=emptyState('Tiada kelas diperuntukkan kepada anda. Sila hubungi Administrator.'); return;
   }
@@ -878,7 +880,7 @@ function bmiKlas(v){ if(v==null)return''; if(v<18.5)return'Kurang Berat'; if(v<2
 
 async function pageBorang(v){
   const classes=await DB.getClasses();
-  let allowed = sortCls(isAdmin() ? classes : classes.filter(c=>c.id===CURRENT.kelasId||c.guruId===CURRENT.id));
+  let allowed = sortCls(seesAllClasses() ? classes : classes.filter(c=>c.id===CURRENT.kelasId||c.guruId===CURRENT.id));
   if(!allowed.length){ v.innerHTML=emptyState('Tiada kelas diperuntukkan kepada anda.'); return; }
   if(!BORANG_STATE.kelasId||!allowed.find(c=>c.id===BORANG_STATE.kelasId)) BORANG_STATE.kelasId=allowed[0].id;
 
@@ -1604,7 +1606,7 @@ async function pageMurid(v){
   const [students,classes]=await Promise.all([DB.getStudents(),DB.getClasses()]);
   const clsName=id=>{const c=classes.find(x=>x.id===id);return c?`Tahun ${c.tahun} ${c.nama}`:'—';};
   let list=students;
-  if(!isAdmin()) list=list.filter(s=>s.kelasId===CURRENT.kelasId);
+  if(!seesAllClasses()) list=list.filter(s=>s.kelasId===CURRENT.kelasId);
   if(MURID_FILTER.q) list=list.filter(s=>s.nama.toLowerCase().includes(MURID_FILTER.q.toLowerCase()));
   if(MURID_FILTER.kelasId) list=list.filter(s=>s.kelasId===MURID_FILTER.kelasId);
   if(MURID_FILTER.statusRMT) list=list.filter(s=>s.statusRMT===MURID_FILTER.statusRMT);
