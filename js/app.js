@@ -574,6 +574,13 @@ function buildShell(){
   });
 }
 
+// Pengawal navigasi: halaman async yang lambat siap TIDAK boleh menindih
+// halaman yang sedang dibuka pengguna (punca "tiba-tiba kembali ke Dashboard").
+function onPage(id){
+  const cur=(location.hash||'#dashboard').slice(1)||'dashboard';
+  return cur===id;
+}
+
 function setActiveNav(id){
   $$('.nav-item[data-nav], .bnav-item[data-nav]').forEach(e=>e.classList.toggle('active',e.dataset.nav===id));
 }
@@ -606,15 +613,18 @@ async function pageDashboard(v){
   const today=new Date(); const y=today.getFullYear(),m=today.getMonth(),d=today.getDate();
   // hadir hari ini merentas semua kelas
   let hadir=0,tidak=0;
-  for(const c of classes){
-    const rec=await DB.getAttendance(c.id,y,m);
+  const todayRecs=await Promise.all(classes.map(c=>DB.getAttendance(c.id,y,m)));
+  classes.forEach((c,ci)=>{
+    const rec=todayRecs[ci];
     for(const s of rmtAktif.filter(x=>x.kelasId===c.id)){
       const mark=rec[s.id]?.[d];
       if(mark==='H')hadir++; else if(mark==='X')tidak++;
     }
-  }
+  });
   const teachers=users.filter(u=>u.role.startsWith('Guru'));
   const monthly=await buildMonthlyChart(classes,rmtAktif,y);
+
+  if(!onPage('dashboard'))return; // halaman lain sudah dibuka — jangan tindih
 
   v.innerHTML=`
     <div class="page-head"><h2>Dashboard</h2><div class="spacer"></div>
@@ -638,18 +648,18 @@ function stat(cls,ico,val,lbl){
     <div class="txt"><div class="val">${val}</div><div class="lbl">${lbl}</div></div></div>`;
 }
 async function buildMonthlyChart(classes,students,year){
-  const pcts=[];
-  for(let m=0;m<12;m++){
-    let hadirCount=0,shouldCount=0;
-    const days=schoolDays(year,m);
-    for(const c of classes){
-      const rec=await DB.getAttendance(c.id,year,m);
-      const cs=students.filter(s=>s.kelasId===c.id);
-      for(const s of cs){ for(const day of days){ const mk=rec[s.id]?.[day];
-        if(mk){shouldCount++; if(mk==='H')hadirCount++;} }}
-    }
-    pcts.push(shouldCount? Math.round(hadirCount/shouldCount*100):0);
+  // baca semua (kelas × bulan) SERENTAK — jauh lebih laju
+  const jobs=[];
+  for(let m=0;m<12;m++) for(const c of classes)
+    jobs.push(DB.getAttendance(c.id,year,m).then(rec=>({m,c,rec})));
+  const all=await Promise.all(jobs);
+  const tally=Array.from({length:12},()=>({h:0,t:0}));
+  for(const {m,c,rec} of all){
+    const cs=students.filter(s=>s.kelasId===c.id);
+    for(const s of cs){ const r=rec[s.id]||{};
+      Object.values(r).forEach(mk=>{ tally[m].t++; if(mk==='H')tally[m].h++; }); }
   }
+  const pcts=tally.map(x=>x.t?Math.round(x.h/x.t*100):0);
   const W=680,H=200,pad=28,bw=W/12;
   const bars=pcts.map((p,i)=>{
     const h=(H-pad*2)*(p/100); const x=i*bw+bw*0.2; const y=H-pad-h;
@@ -695,6 +705,8 @@ async function pageKehadiran(v){
   const moOpts=MONTHS.map((mm,i)=>`<option value="${i}" ${i===C8_STATE.month?'selected':''}>${mm}</option>`).join('');
   const yNow=new Date().getFullYear();
   const yOpts=yearRange().map(yy=>`<option value="${yy}" ${yy===C8_STATE.year?'selected':''}>${yy}</option>`).join('');
+
+  if(!onPage('kehadiran'))return; // halaman lain sudah dibuka — jangan tindih
 
   v.innerHTML=`
     <div class="page-head"><h2>Rekod Kehadiran Murid RMT</h2><div class="spacer"></div>
@@ -887,6 +899,8 @@ async function pageBorang(v){
   const clsOpts=allowed.map(c=>`<option value="${c.id}" ${c.id===BORANG_STATE.kelasId?'selected':''}>Tahun ${c.tahun} ${esc(c.nama)}</option>`).join('');
   const yNow=new Date().getFullYear();
   const yOpts=yearRange().map(y=>`<option ${y===BORANG_STATE.year?'selected':''}>${y}</option>`).join('');
+
+  if(!onPage('borang'))return; // halaman lain sudah dibuka — jangan tindih
 
   v.innerHTML=`
     <div class="page-head"><h2>Borang C1 / C2</h2><div class="spacer"></div>
@@ -1098,6 +1112,7 @@ async function pageRumusan(v){
     MONTHS.map((m,i)=>`<option value="${i}" ${i===RUM_STATE.month?'selected':''}>${m}</option>`).join('');
   const yOpts=yearRange().map(y=>`<option ${y===RUM_STATE.year?'selected':''}>${y}</option>`).join('');
   const kOpts=classes.map(c=>`<option value="${c.id}" ${c.id===RUM_STATE.kelasId?'selected':''}>Tahun ${c.tahun} ${esc(c.nama)}</option>`).join('');
+  if(!onPage('rumusan'))return; // halaman lain sudah dibuka — jangan tindih
   v.innerHTML=`
     <div class="page-head"><h2>Rumusan &amp; Laporan</h2><div class="spacer"></div>
       <button class="btn btn-blue" id="printRum">${IC.print} Cetak / PDF</button></div>
@@ -1136,8 +1151,8 @@ async function computeRumusan(){
   for(const c of list){
     const cs=ctx.act.filter(s=>s.kelasId===c.id);
     let h=0,x=0;
-    for(const m of monthsToScan){
-      const rec=await DB.getAttendance(c.id,year,m);
+    const recs=await Promise.all(monthsToScan.map(m=>DB.getAttendance(c.id,year,m)));
+    for(const rec of recs){
       for(const st of cs){ const r=rec[st.id]||{};
         Object.values(r).forEach(mk=>{ if(mk==='H')h++; else if(mk==='X')x++; }); }
     }
@@ -1247,12 +1262,10 @@ async function computeStatus(){
   const classes=sortCls(await DB.getClasses());
   const rows=[];
   for(const c of classes){
-    const cells=[];
-    for(let m=0;m<12;m++){
-      const doc=await DB.getAttDoc(c.id,year,m);
+    const docs=await Promise.all([...Array(12).keys()].map(m=>DB.getAttDoc(c.id,year,m)));
+    const cells=docs.map(doc=>{
       const ada=Object.keys(doc.records).length>0;
-      cells.push(doc.sah?'sah':(ada?'belum':'kosong'));
-    }
+      return doc.sah?'sah':(ada?'belum':'kosong');});
     rows.push({label:`Tahun ${c.tahun} ${c.nama}`,cells});
   }
   return rows;
@@ -1622,6 +1635,8 @@ async function pageMurid(v){
         ${isAdmin()?`<button class="btn btn-sm btn-danger" data-del="${s.id}">Padam</button>`:''}
       </td></tr>`).join('') || `<tr><td colspan="7">${emptyState('Tiada murid dijumpai.')}</td></tr>`;
 
+  if(!onPage('murid'))return; // halaman lain sudah dibuka — jangan tindih
+
   v.innerHTML=`
     <div class="page-head"><h2>Maklumat Murid</h2><div class="spacer"></div>
       ${isAdmin()?`<button class="btn" id="impBtn">Import CSV</button>
@@ -1736,6 +1751,7 @@ async function pageKelas(v){
     <td class="no-print" style="white-space:nowrap"><button class="btn btn-sm" data-edit="${c.id}">Edit</button>
       <button class="btn btn-sm btn-danger" data-del="${c.id}">Padam</button></td></tr>`).join('')
     || `<tr><td colspan="5">${emptyState('Belum ada kelas.')}</td></tr>`;
+  if(!onPage('kelas'))return; // halaman lain sudah dibuka — jangan tindih
   v.innerHTML=`
     <div class="page-head"><h2>Maklumat Kelas</h2><div class="spacer"></div>
       <button class="btn btn-primary" id="addBtn">${IC.plus} Tambah Kelas</button></div>
@@ -1782,6 +1798,7 @@ async function pageGuru(v){
     <td><span class="badge ${u.aktif?'ok':'off'}">${u.aktif?'Aktif':'Tidak Aktif'}</span></td>
     <td class="no-print" style="white-space:nowrap"><button class="btn btn-sm" data-edit="${u.id}">Edit</button>
       <button class="btn btn-sm btn-danger" data-del="${u.id}">Padam</button></td></tr>`).join('');
+  if(!onPage('guru'))return; // halaman lain sudah dibuka — jangan tindih
   v.innerHTML=`
     <div class="page-head"><h2>Guru & Pengguna</h2><div class="spacer"></div>
       <button class="btn btn-primary" id="addBtn">${IC.plus} Tambah Pengguna</button></div>
@@ -1839,6 +1856,7 @@ function userModal(u,classes,v){
 async function pageTetapan(v){
   const s=await DB.getSchool();
   let logoData=s.logo||'';
+  if(!onPage('tetapan'))return; // halaman lain sudah dibuka — jangan tindih
   v.innerHTML=`
     <div class="page-head"><h2>Tetapan Sekolah</h2></div>
     <div class="card" style="max-width:640px">
@@ -2003,6 +2021,8 @@ async function pageKalendar(v){
   const holRows=holidays.map(h=>`<tr><td>${esc(h.date)}</td><td>${esc(h.nama)}</td>
       <td class="no-print"><button class="btn btn-sm btn-danger" data-del="${h.id}">Padam</button></td></tr>`).join('')
       || `<tr><td colspan="3" style="color:var(--muted);padding:14px">Belum ada cuti direkod.</td></tr>`;
+
+  if(!onPage('kalendar'))return; // halaman lain sudah dibuka — jangan tindih
 
   v.innerHTML=`
     <div class="page-head"><h2>Hari Persekolahan &amp; Cuti</h2></div>
