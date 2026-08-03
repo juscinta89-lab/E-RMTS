@@ -62,7 +62,8 @@ function applyTheme(hex){
 
 function yearRange(){ const y=new Date().getFullYear(); const out=[];
   for(let i=2025;i<=y+1;i++) out.push(i); return out; }
-const sortCls=arr=>[...arr].sort((a,b)=>a.tahun-b.tahun||a.nama.localeCompare(b.nama));
+const clsLabel=c=>c?((c.tahun?`Tahun ${c.tahun} `:'')+c.nama):'—';
+const sortCls=arr=>[...arr].sort((a,b)=>((a.tahun||99)-(b.tahun||99))||a.nama.localeCompare(b.nama));
 const $  = (s,el=document)=>el.querySelector(s);
 const $$ = (s,el=document)=>[...el.querySelectorAll(s)];
 const esc = s => String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -726,7 +727,7 @@ async function pageKehadiran(v){
   }
   if(!C8_STATE.kelasId||!allowed.find(c=>c.id===C8_STATE.kelasId)) C8_STATE.kelasId=allowed[0].id;
 
-  const clsOpts=allowed.map(c=>`<option value="${c.id}" ${c.id===C8_STATE.kelasId?'selected':''}>Tahun ${c.tahun} ${esc(c.nama)}</option>`).join('');
+  const clsOpts=allowed.map(c=>`<option value="${c.id}" ${c.id===C8_STATE.kelasId?'selected':''}>${esc(clsLabel(c))}</option>`).join('');
   const moOpts=MONTHS.map((mm,i)=>`<option value="${i}" ${i===C8_STATE.month?'selected':''}>${mm}</option>`).join('');
   const yNow=new Date().getFullYear();
   const yOpts=yearRange().map(yy=>`<option value="${yy}" ${yy===C8_STATE.year?'selected':''}>${yy}</option>`).join('');
@@ -836,7 +837,7 @@ async function renderC8(){
           <tr><td class="c8-title" colspan="${5+nDays+3}">
             ${school.logo?`<img src="${school.logo}" style="height:32px;vertical-align:middle;margin-right:10px">`:''}
             ${esc(school.nama)} &nbsp;·&nbsp; REKOD KEHADIRAN MURID RMT &nbsp;·&nbsp; ${bulanLabel}
-            &nbsp;·&nbsp; ${esc('Tahun '+cls.tahun+' '+cls.nama)}
+            &nbsp;·&nbsp; ${esc(clsLabel(cls))}
             <span style="float:right;font-size:11px">BORANG C8</span>
           </td></tr>
           <tr>
@@ -921,7 +922,7 @@ async function pageBorang(v){
   if(!allowed.length){ v.innerHTML=emptyState('Tiada kelas diperuntukkan kepada anda.'); return; }
   if(!BORANG_STATE.kelasId||!allowed.find(c=>c.id===BORANG_STATE.kelasId)) BORANG_STATE.kelasId=allowed[0].id;
 
-  const clsOpts=allowed.map(c=>`<option value="${c.id}" ${c.id===BORANG_STATE.kelasId?'selected':''}>Tahun ${c.tahun} ${esc(c.nama)}</option>`).join('');
+  const clsOpts=allowed.map(c=>`<option value="${c.id}" ${c.id===BORANG_STATE.kelasId?'selected':''}>${esc(clsLabel(c))}</option>`).join('');
   const yNow=new Date().getFullYear();
   const yOpts=yearRange().map(y=>`<option ${y===BORANG_STATE.year?'selected':''}>${y}</option>`).join('');
 
@@ -1098,8 +1099,11 @@ async function prosesNaikKelas(){
       const curCls=classes.find(c=>c.id===st.kelasId);
       let newKelasId=null;
       if(curCls){
-        const target=classes.find(c=>c.tahun===st.tahun+1&&c.nama===curCls.nama);
-        if(target) newKelasId=target.id;
+        if(!curCls.tahun){ newKelasId=curCls.id; } // kelas tanpa tahun (Prasekolah/PPKI): kekal
+        else{
+          const target=classes.find(c=>c.tahun===st.tahun+1&&c.nama===curCls.nama);
+          if(target) newKelasId=target.id;
+        }
       }
       if(!newKelasId) tiadaKelas++;
       await DB.saveStudent({...st,tahun:st.tahun+1,kelasId:newKelasId});
@@ -1136,7 +1140,7 @@ async function pageRumusan(v){
   const moOpts=`<option value="-1" ${RUM_STATE.month===-1?'selected':''}>Setahun (Jan–Dis)</option>`+
     MONTHS.map((m,i)=>`<option value="${i}" ${i===RUM_STATE.month?'selected':''}>${m}</option>`).join('');
   const yOpts=yearRange().map(y=>`<option ${y===RUM_STATE.year?'selected':''}>${y}</option>`).join('');
-  const kOpts=classes.map(c=>`<option value="${c.id}" ${c.id===RUM_STATE.kelasId?'selected':''}>Tahun ${c.tahun} ${esc(c.nama)}</option>`).join('');
+  const kOpts=classes.map(c=>`<option value="${c.id}" ${c.id===RUM_STATE.kelasId?'selected':''}>${esc(clsLabel(c))}</option>`).join('');
   if(!onPage('rumusan'))return; // halaman lain sudah dibuka — jangan tindih
   v.innerHTML=`
     <div class="page-head"><h2>Rumusan &amp; Laporan</h2><div class="spacer"></div>
@@ -1182,7 +1186,7 @@ async function computeRumusan(){
         Object.values(r).forEach(mk=>{ if(mk==='H')h++; else if(mk==='X')x++; }); }
     }
     const tot=h+x;
-    rows.push({label:`Tahun ${c.tahun} ${c.nama}`,murid:cs.length,h,x,pct:tot?+(h/tot*100).toFixed(1):null});
+    rows.push({label:clsLabel(c),murid:cs.length,h,x,pct:tot?+(h/tot*100).toFixed(1):null});
     T.murid+=cs.length; T.h+=h; T.x+=x;
   }
   const tA=T.h+T.x;
@@ -1291,7 +1295,7 @@ async function computeStatus(){
     const cells=docs.map(doc=>{
       const ada=Object.keys(doc.records).length>0;
       return doc.sah?'sah':(ada?'belum':'kosong');});
-    rows.push({label:`Tahun ${c.tahun} ${c.nama}`,cells});
+    rows.push({label:clsLabel(c),cells});
   }
   return rows;
 }
@@ -1369,7 +1373,7 @@ async function printRumusan(){
   else if(j==='murid'){ const classes=await DB.getClasses();
     const c=classes.find(x=>x.id===RUM_STATE.kelasId)||{};
     await printReport('LAPORAN KEHADIRAN TAHUNAN MURID RMT',
-      `TAHUN ${c.tahun||''} ${esc((c.nama||'').toUpperCase())} · SESI ${RUM_STATE.year}`,
+      `${esc(clsLabel(c).toUpperCase())} · SESI ${RUM_STATE.year}`,
       muridTableHTML(await computeMurid()),'landscape',peny,gb); }
   else if(j==='jantina'){ const d=await computeJantina();
     await printReport('STATISTIK KEHADIRAN RMT MENGIKUT JANTINA & DARJAH',d.label,jantinaTableHTML(d),'portrait',peny,gb); }
@@ -1413,7 +1417,7 @@ async function printBorang(){
       <b>NAMA SEKOLAH</b> : ${esc(school.nama||'')}<br>
       <b>KOD SEKOLAH</b> &nbsp;&nbsp;: ${esc(school.kod||'')}<br>
       <b>DAERAH</b> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: ${esc(school.daerah||'')} &nbsp;&nbsp;&nbsp; <b>NEGERI:</b> ${esc(school.negeri||'')}<br>
-      <b>KELAS</b> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: TAHUN ${cls.tahun||''} ${esc((cls.nama||'').toUpperCase())} &nbsp;&nbsp;&nbsp; <b>TAHUN:</b> ${year}
+      <b>KELAS</b> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: ${esc(clsLabel(cls).toUpperCase())} &nbsp;&nbsp;&nbsp; <b>TAHUN:</b> ${year}
     </div>
     ${clone.outerHTML}
     <div class="sign">
@@ -1463,7 +1467,7 @@ async function c8SectionHTML(school,users,cls,year,month){
         <div class="t2">REKOD KEHADIRAN MURID RMT</div></div>
       <div class="tag">BORANG C8</div></div>
     <div class="info"><div><b>BULAN:</b> ${MONTHS[month].toUpperCase()} ${year}</div>
-      <div><b>KELAS:</b> TAHUN ${cls.tahun} ${esc((cls.nama||'').toUpperCase())}</div>
+      <div><b>KELAS:</b> ${esc(clsLabel(cls).toUpperCase())}</div>
       <div><b>GURU KELAS:</b> ${esc(guru?guru.nama.toUpperCase():'—')}</div>
       ${sah?`<div><b>DISAHKAN:</b> ${esc(sah.olehNama)} · ${new Date(sah.tarikh).toLocaleDateString('ms-MY')}</div>`:''}</div>
     <table><thead>
@@ -1575,7 +1579,7 @@ async function printC8(){
     </div>
     <div class="info">
       <div><b>BULAN:</b> ${MONTHS[month].toUpperCase()} ${year}</div>
-      <div><b>KELAS:</b> TAHUN ${cls.tahun||''} ${esc((cls.nama||'').toUpperCase())}</div>
+      <div><b>KELAS:</b> ${esc(clsLabel(cls).toUpperCase())}</div>
       <div><b>GURU KELAS:</b> ${esc(guru?guru.nama.toUpperCase():'—')}</div>
       ${sahP?`<div><b>DISAHKAN:</b> ${esc(sahP.olehNama)} · ${new Date(sahP.tarikh).toLocaleDateString('ms-MY')}</div>`:''}
     </div>
@@ -1642,7 +1646,7 @@ function recalcFooter(){
 let MURID_FILTER={q:'',kelasId:'',statusRMT:''};
 async function pageMurid(v){
   const [students,classes]=await Promise.all([DB.getStudents(),DB.getClasses()]);
-  const clsName=id=>{const c=classes.find(x=>x.id===id);return c?`Tahun ${c.tahun} ${c.nama}`:'—';};
+  const clsName=id=>{const c=classes.find(x=>x.id===id);return c?clsLabel(c):'—';};
   let list=students;
   if(!seesAllClasses()) list=list.filter(s=>s.kelasId===CURRENT.kelasId);
   if(MURID_FILTER.q) list=list.filter(s=>s.nama.toLowerCase().includes(MURID_FILTER.q.toLowerCase()));
@@ -1650,7 +1654,7 @@ async function pageMurid(v){
   if(MURID_FILTER.statusRMT) list=list.filter(s=>s.statusRMT===MURID_FILTER.statusRMT);
   list.sort((a,b)=>a.nama.localeCompare(b.nama));
 
-  const clsOpts=`<option value="">Semua kelas</option>`+sortCls(classes).map(c=>`<option value="${c.id}" ${MURID_FILTER.kelasId===c.id?'selected':''}>Tahun ${c.tahun} ${esc(c.nama)}</option>`).join('');
+  const clsOpts=`<option value="">Semua kelas</option>`+sortCls(classes).map(c=>`<option value="${c.id}" ${MURID_FILTER.kelasId===c.id?'selected':''}>${esc(clsLabel(c))}</option>`).join('');
   const rows=list.map((s,i)=>`<tr>
       <td>${i+1}</td><td>${esc(s.nama)}</td><td>${esc(s.mykid||'—')}</td>
       <td>${s.jantina==='L'?'Lelaki':'Perempuan'}</td><td>${esc(clsName(s.kelasId))}</td>
@@ -1693,7 +1697,7 @@ async function pageMurid(v){
 
 function studentModal(s,classes,v){
   const isEdit=!!s; s=s||{jantina:'L',statusRMT:'Aktif',tahun:1};
-  const clsOpts=sortCls(classes).map(c=>`<option value="${c.id}" ${s.kelasId===c.id?'selected':''}>Tahun ${c.tahun} ${esc(c.nama)}</option>`).join('');
+  const clsOpts=sortCls(classes).map(c=>`<option value="${c.id}" ${s.kelasId===c.id?'selected':''}>${esc(clsLabel(c))}</option>`).join('');
   openModal(`
     <div class="modal-head"><h3>${isEdit?'Edit':'Tambah'} Murid</h3><div class="spacer" style="flex:1"></div>
       <button class="icon-btn" onclick="closeModal()">${IC.x}</button></div>
@@ -1751,8 +1755,9 @@ function importCSVModal(classes,v){
       const p=ln.split(',');
       const nama=(p[idx('nama')]||'').trim(); if(!nama)continue;
       const tahun=+(p[idx('tahun')]||1); const kelasName=(p[idx('kelas')]||'').trim().toLowerCase();
-      let cls=classes.find(c=>`tahun ${c.tahun} ${c.nama}`.toLowerCase()===kelasName)
-            ||classes.find(c=>c.nama.toLowerCase()===kelasName&&c.tahun===tahun);
+      let cls=classes.find(c=>clsLabel(c).toLowerCase()===kelasName)
+            ||classes.find(c=>c.nama.toLowerCase()===kelasName&&c.tahun===tahun)
+            ||classes.find(c=>!c.tahun&&c.nama.toLowerCase()===kelasName);
       await DB.saveStudent({nama,mykid:(p[idx('mykid')]||'').trim(),
         jantina:((p[idx('jantina')]||'L').trim().toUpperCase().startsWith('P'))?'P':'L',
         tahun,kelasId:cls?cls.id:(classes[0]?.id||''),statusRMT:'Aktif'});
@@ -1769,9 +1774,9 @@ async function pageKelas(v){
   const [classes,users,students]=await Promise.all([DB.getClasses(),DB.getUsers(),DB.getStudents()]);
   const gName=id=>{const u=users.find(x=>x.id===id);return u?u.nama:'—';};
   const count=id=>students.filter(s=>s.kelasId===id).length;
-  classes.sort((a,b)=>a.tahun-b.tahun||a.nama.localeCompare(b.nama));
+  const sorted=sortCls(classes); classes.length=0; classes.push(...sorted);
   const rows=classes.map((c,i)=>`<tr>
-    <td>${i+1}</td><td>Tahun ${c.tahun} ${esc(c.nama)}</td><td>${esc(gName(c.guruId))}</td>
+    <td>${i+1}</td><td>${esc(clsLabel(c))}</td><td>${esc(gName(c.guruId))}</td>
     <td><span class="badge b">${count(c.id)} murid</span></td>
     <td class="no-print" style="white-space:nowrap"><button class="btn btn-sm" data-edit="${c.id}">Edit</button>
       <button class="btn btn-sm btn-danger" data-del="${c.id}">Padam</button></td></tr>`).join('')
@@ -1797,7 +1802,9 @@ function classModal(c,users,v){
       <button class="icon-btn" onclick="closeModal()">${IC.x}</button></div>
     <div class="modal-body">
       <div class="grid-2">
-        <div class="field"><label>Tahun</label><select id="c-thn">${[1,2,3,4,5,6].map(t=>`<option ${c.tahun===t?'selected':''}>${t}</option>`).join('')}</select></div>
+        <div class="field"><label>Tahun</label><select id="c-thn">
+          <option value="0" ${!c.tahun?'selected':''}>&mdash; (tiada tahun, cth Prasekolah/PPKI)</option>
+          ${[1,2,3,4,5,6].map(t=>`<option value="${t}" ${c.tahun===t?'selected':''}>${t}</option>`).join('')}</select></div>
         <div class="field"><label>Nama kelas</label><input id="c-nama" value="${esc(c.nama)}" placeholder="Amanah"></div>
       </div>
       <div class="field"><label>Guru kelas</label><select id="c-guru">${gOpts}</select></div>
@@ -1816,7 +1823,7 @@ function classModal(c,users,v){
 --------------------------------------------------------- */
 async function pageGuru(v){
   const [users,classes]=await Promise.all([DB.getUsers(),DB.getClasses()]);
-  const clsName=id=>{const c=classes.find(x=>x.id===id);return c?`Tahun ${c.tahun} ${c.nama}`:'—';};
+  const clsName=id=>{const c=classes.find(x=>x.id===id);return c?clsLabel(c):'—';};
   const rows=users.map((u,i)=>`<tr>
     <td>${i+1}</td><td>${esc(u.nama)}</td><td>${esc(u.role)}</td><td>${esc(u.username||u.email||'—')}</td>
     <td>${esc(u.kelasId?clsName(u.kelasId):'—')}</td>
@@ -1839,7 +1846,7 @@ async function pageGuru(v){
 function userModal(u,classes,v){
   const isEdit=!!u; u=u||{role:'Guru Kelas',aktif:true};
   const roleOpts=ROLES.map(r=>`<option ${u.role===r?'selected':''}>${r}</option>`).join('');
-  const clsOpts=`<option value="">— Tiada —</option>`+sortCls(classes).map(c=>`<option value="${c.id}" ${u.kelasId===c.id?'selected':''}>Tahun ${c.tahun} ${esc(c.nama)}</option>`).join('');
+  const clsOpts=`<option value="">— Tiada —</option>`+sortCls(classes).map(c=>`<option value="${c.id}" ${u.kelasId===c.id?'selected':''}>${esc(clsLabel(c))}</option>`).join('');
   openModal(`
     <div class="modal-head"><h3>${isEdit?'Edit':'Tambah'} Pengguna</h3><div style="flex:1"></div>
       <button class="icon-btn" onclick="closeModal()">${IC.x}</button></div>
