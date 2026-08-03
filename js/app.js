@@ -8,23 +8,23 @@
    0. Ikon (SVG inline, Material-style)
 --------------------------------------------------------- */
 const IC = {
-  dash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>',
-  check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M8 12l3 3 5-6"/><path d="M8 2v4M16 2v4"/></svg>',
-  student:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10L12 5 2 10l10 5 10-5z"/><path d="M6 12v5c0 1 3 3 6 3s6-2 6-3v-5"/></svg>',
-  teacher:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.5-6 8-6s8 2 8 6"/></svg>',
-  cls:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 5h18v12H3z"/><path d="M3 21h18"/></svg>',
-  gear:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.5-2.4 1a7 7 0 0 0-1.7-1L14.5 3h-5l-.3 2a7 7 0 0 0-1.7 1l-2.4-1-2 3.5L3.1 11a7 7 0 0 0 0 2l-2 1.5 2 3.5 2.4-1a7 7 0 0 0 1.7 1l.3 2h5l.3-2a7 7 0 0 0 1.7-1l2.4 1 2-3.5-2-1.5c.1-.3.1-.7.1-1z"/></svg>',
-  cal:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/></svg>',
-  logout:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>',
-  menu:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>',
-  plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>',
-  edit:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>',
-  trash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>',
-  moon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg>',
-  print:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>',
-  x:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>',
-  chart:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6"/><rect x="12" y="8" width="3" height="10"/><rect x="17" y="5" width="3" height="13"/></svg>',
-  file:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h6"/></svg>',
+  dash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>',
+  check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M8 12l3 3 5-6"/><path d="M8 2v4M16 2v4"/></svg>',
+  student:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10L12 5 2 10l10 5 10-5z"/><path d="M6 12v5c0 1 3 3 6 3s6-2 6-3v-5"/></svg>',
+  teacher:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.5-6 8-6s8 2 8 6"/></svg>',
+  cls:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18v12H3z"/><path d="M3 21h18"/></svg>',
+  gear:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.5-2.4 1a7 7 0 0 0-1.7-1L14.5 3h-5l-.3 2a7 7 0 0 0-1.7 1l-2.4-1-2 3.5L3.1 11a7 7 0 0 0 0 2l-2 1.5 2 3.5 2.4-1a7 7 0 0 0 1.7 1l.3 2h5l.3-2a7 7 0 0 0 1.7-1l2.4 1 2-3.5-2-1.5c.1-.3.1-.7.1-1z"/></svg>',
+  cal:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/></svg>',
+  logout:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>',
+  menu:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>',
+  plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>',
+  edit:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>',
+  trash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>',
+  moon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg>',
+  print:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>',
+  x:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>',
+  chart:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6"/><rect x="12" y="8" width="3" height="10"/><rect x="17" y="5" width="3" height="13"/></svg>',
+  file:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h6"/></svg>',
   empty:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 12l9 4 9-4M3 17l9 4 9-4"/></svg>'
 };
 
@@ -37,6 +37,29 @@ const ROLES = ['Administrator','Guru Besar','PK HEM','Guru RMT','Guru Kelas','Pe
 --------------------------------------------------------- */
 // Senarai tahun sesi: dari 2025 (mula guna sistem) hingga tahun hadapan.
 // Bertambah automatik setiap tahun; rekod lama sentiasa boleh dibuka semula.
+// ---- Tema warna dinamik (warna sekolah) ----
+function shadeHex(hex,p){ // p: -1..1 (negatif = gelap)
+  try{
+    const n=parseInt(hex.slice(1),16);
+    let r=(n>>16)&255,g=(n>>8)&255,b=n&255;
+    const f=v=>Math.max(0,Math.min(255,Math.round(p<0?v*(1+p):v+(255-v)*p)));
+    return '#'+[f(r),f(g),f(b)].map(x=>x.toString(16).padStart(2,'0')).join('');
+  }catch(e){return hex;}
+}
+function applyTheme(hex){
+  if(!hex||!/^#[0-9a-fA-F]{6}$/.test(hex)) return;
+  const r=document.documentElement.style;
+  r.setProperty('--green',hex);
+  r.setProperty('--green-dark',shadeHex(hex,-0.28));
+  const dark=document.documentElement.getAttribute('data-theme')==='dark';
+  r.setProperty('--green-soft',dark?shadeHex(hex,-0.72):shadeHex(hex,0.88));
+  const meta=document.querySelector('meta[name="theme-color"]');
+  if(meta)meta.setAttribute('content',hex);
+  try{localStorage.setItem('rmt_themecolor',hex);}catch(e){}
+}
+// terap serta-merta dari cache (elak kelipan warna lama)
+(function(){try{const t=localStorage.getItem('rmt_themecolor');if(t)applyTheme(t);}catch(e){}})();
+
 function yearRange(){ const y=new Date().getFullYear(); const out=[];
   for(let i=2025;i<=y+1;i++) out.push(i); return out; }
 const sortCls=arr=>[...arr].sort((a,b)=>a.tahun-b.tahun||a.nama.localeCompare(b.nama));
@@ -330,6 +353,7 @@ async function loadConfig(){
     const s=await DB.getSchool();
     APP_CFG.restDays = Array.isArray(s.restDays)&&s.restDays.length? s.restDays : [0,6];
     APP_CFG.sesi = s.sesi || new Date().getFullYear();
+    if(s.themeColor) applyTheme(s.themeColor);
     APP_CFG.holidays = await DB.listHolidays();
   }catch(e){ /* biar lalai */ }
 }
@@ -601,6 +625,7 @@ function toggleDark(){
   const d=document.documentElement.getAttribute('data-theme')==='dark'?'':'dark';
   document.documentElement.setAttribute('data-theme',d);
   localStorage.setItem('rmt_theme',d);
+  try{const t=localStorage.getItem('rmt_themecolor');if(t)applyTheme(t);}catch(e){}
 }
 (function initTheme(){const t=localStorage.getItem('rmt_theme');if(t)document.documentElement.setAttribute('data-theme',t);})();
 
@@ -1891,6 +1916,19 @@ async function pageTetapan(v){
     </div>
 
     <div class="card" style="max-width:640px;margin-top:18px">
+      <h3 style="margin:0 0 6px">Warna Tema Aplikasi</h3>
+      <p style="color:var(--muted);font-size:13px;margin:0 0 12px">
+        Pilih warna rasmi sekolah — seluruh aplikasi (topbar, butang, menu) akan mengikut warna ini.</p>
+      <div class="swatches" id="s-swatches">
+        ${['#0B7A3B','#1565C0','#8E1B1B','#6A1B9A','#00695C','#E65100','#283593','#B8860B']
+          .map(c=>`<button class="swatch" data-c="${c}" style="background:${c}" title="${c}"></button>`).join('')}
+        <label class="swatch custom" title="Warna sendiri">🎨
+          <input type="color" id="s-custcolor" value="${esc(s.themeColor||'#0B7A3B')}" style="opacity:0;position:absolute;inset:0;cursor:pointer"></label>
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin:10px 0 0">Warna semasa: <b id="s-curcolor">${esc(s.themeColor||'#0B7A3B (asal KPM)')}</b>. Klik warna untuk terap &amp; simpan.</p>
+    </div>
+
+    <div class="card" style="max-width:640px;margin-top:18px">
       <h3 style="margin:0 0 6px">Naik Kelas (Sesi Baharu)</h3>
       <p style="color:var(--muted);font-size:13px;margin:0 0 12px">
         Sesi semasa: <b>${APP_CFG.sesi||new Date().getFullYear()}</b>.
@@ -1938,6 +1976,17 @@ async function pageTetapan(v){
     DB.addLog('Ubah tetapan sekolah','');
     toast('Tetapan disimpan','ok');
   };
+
+  /* --- Warna Tema --- */
+  const pilihWarna=async c=>{
+    applyTheme(c);
+    await DB.saveSchool({themeColor:c});
+    $('#s-curcolor').textContent=c;
+    DB.addLog('Tukar warna tema',c);
+    toast('Warna tema disimpan: '+c,'ok');
+  };
+  $$('#s-swatches .swatch[data-c]').forEach(b=>b.onclick=()=>pilihWarna(b.dataset.c));
+  $('#s-custcolor').oninput=e=>pilihWarna(e.target.value);
 
   /* --- Log Aktiviti --- */
   $('#s-loglihat').onclick=async()=>{
