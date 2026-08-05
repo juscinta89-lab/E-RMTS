@@ -419,3 +419,98 @@ input.mini{width:56px;padding:5px 4px;font-size:12px;text-align:center;border-ra
   cursor:pointer;background:var(--card);font-size:14px;transition:.12s}
 .sc-hit:hover{background:var(--green-soft);border-color:var(--green)}
 .sc-hit span{color:var(--muted);font-size:12px;white-space:nowrap}
+
+/* =========================================================
+   LAPISAN REKA BENTUK v2 — "Athletic Bold"
+   Nombor besar & tebal, label mikro huruf besar, kontras tinggi.
+   Borang rasmi (C8/C1/C2) sengaja dikekalkan padat & disiplin.
+   ========================================================= */
+:root{
+  --font-display:'Barlow Condensed','Arial Narrow',Impact,sans-serif;
+  --font-body:'Inter',-apple-system,"Segoe UI",Roboto,sans-serif;
+  --ink-deep:#0E1319;
+  --radius:16px;
+}
+[data-theme="dark"]{ --ink-deep:#000000; }
+
+body{font-family:var(--font-body);letter-spacing:-.005em}
+
+/* ---- Skala taip ---- */
+h1,h2,h3{font-family:var(--font-display);letter-spacing:.01em;text-transform:uppercase;line-height:1.05}
+.page-head h2{font-size:30px;font-weight:800;margin:0}
+.card h3{font-size:19px;font-weight:700}
+.auth-brand h1{font-size:26px;font-weight:800}
+
+/* Label mikro — dipakai pada semua kapsyen data */
+.lbl,.stat .lbl,.field label,.c8-toolbar .field label{
+  text-transform:uppercase;letter-spacing:.11em;font-size:10.5px;font-weight:700;
+  font-family:var(--font-body);color:var(--muted)}
+
+/* ---- HERO: peratus kehadiran bulan semasa (elemen tanda tangan) ---- */
+.hero{
+  background:var(--ink-deep);color:#fff;border-radius:var(--radius);
+  padding:26px 24px;margin-bottom:16px;position:relative;overflow:hidden}
+.hero::after{ /* jalur aksen menyerong */
+  content:"";position:absolute;top:-40%;right:-12%;width:52%;height:190%;
+  background:var(--green);opacity:.16;transform:skewX(-16deg)}
+.hero .eyebrow{text-transform:uppercase;letter-spacing:.16em;font-size:10.5px;
+  font-weight:700;opacity:.62;margin-bottom:2px}
+.hero .big{font-family:var(--font-display);font-weight:800;font-size:80px;
+  line-height:.86;letter-spacing:-.01em;display:flex;align-items:baseline;gap:6px}
+.hero .big small{font-size:30px;font-weight:700;opacity:.65}
+.hero .sub{font-size:13px;opacity:.72;margin-top:8px}
+.hero-row{display:flex;gap:0;margin-top:20px;position:relative;z-index:1;
+  border-top:1px solid rgba(255,255,255,.16);padding-top:14px}
+.hero-row .cell{flex:1;padding-right:12px}
+.hero-row .cell + .cell{border-left:1px solid rgba(255,255,255,.16);padding-left:14px}
+.hero-row .v{font-family:var(--font-display);font-weight:800;font-size:26px;line-height:1}
+.hero-row .k{text-transform:uppercase;letter-spacing:.1em;font-size:9.5px;
+  font-weight:700;opacity:.6;margin-top:3px}
+
+/* ---- Kad statistik: nombor mendominasi ---- */
+.stat{padding:16px 16px 14px;border-radius:var(--radius);box-shadow:none;
+  border:1px solid var(--line);transition:.16s}
+.stat:hover{border-color:var(--green);transform:translateY(-2px)}
+.stat .ico{width:32px;height:32px;border-radius:9px;margin-bottom:12px}
+.stat .ico svg{width:17px;height:17px}
+.stat .val{font-family:var(--font-display);font-weight:800;font-size:40px;
+  line-height:.9;letter-spacing:-.01em}
+.stat .lbl{margin-top:6px;line-height:1.3}
+
+/* ---- Butang: tegas, huruf besar ---- */
+.btn{text-transform:uppercase;letter-spacing:.06em;font-weight:700;font-size:12.5px;
+  border-radius:10px;padding:11px 16px}
+.btn-sm{font-size:11px;padding:7px 11px;letter-spacing:.05em}
+.btn-primary,.btn-blue{box-shadow:0 2px 0 rgba(0,0,0,.14)}
+.btn-primary:active,.btn-blue:active{box-shadow:none}
+
+/* ---- Topbar & navigasi ---- */
+.topbar .brand{font-family:var(--font-display);font-size:21px;font-weight:800;
+  letter-spacing:.03em;text-transform:uppercase}
+.topbar .brand .logo{border-radius:9px;font-family:var(--font-display);font-size:14px}
+.nav-item{text-transform:uppercase;letter-spacing:.05em;font-size:12.5px;font-weight:700}
+.user-chip{font-weight:600}
+
+/* ---- Kad & jadual data ---- */
+.card{box-shadow:none;border-radius:var(--radius)}
+table.data th{text-transform:uppercase;letter-spacing:.09em;font-size:10.5px;
+  background:transparent;color:var(--muted);border-bottom:2px solid var(--line)}
+table.data td{font-size:14px}
+table.data tbody tr:hover td{background:var(--green-soft)}
+.badge{text-transform:uppercase;letter-spacing:.06em;font-size:10.5px;font-weight:800}
+
+/* ---- Login ---- */
+.auth-logo{border-radius:18px;font-family:var(--font-display);font-size:26px;font-weight:800;
+  width:72px;height:72px}
+
+@media(max-width:600px){
+  .page-head h2{font-size:24px}
+  .hero{padding:20px 18px}
+  .hero .big{font-size:60px}
+  .hero .big small{font-size:24px}
+  .hero-row .v{font-size:20px}
+  .stat .val{font-size:32px}
+}
+@media(max-width:860px){
+  .bnav-item{text-transform:uppercase;letter-spacing:.04em;font-weight:700}
+}

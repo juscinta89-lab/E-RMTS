@@ -668,19 +668,39 @@ async function pageDashboard(v){
 
   if(!onPage('dashboard'))return; // halaman lain sudah dibuka — jangan tindih
 
+  // Hero: peratus kehadiran bulan semasa merentas semua kelas
+  let mH=0,mX=0;
+  todayRecs.forEach(rec=>{ Object.values(rec).forEach(r=>{
+    Object.values(r).forEach(k=>{ if(k==='H')mH++; else if(k==='X')mX++; }); }); });
+  const mTot=mH+mX, mPct=mTot?Math.round(mH/mTot*100):null;
+
   v.innerHTML=`
     <div class="page-head"><h2>Dashboard</h2><div class="spacer"></div>
       <span class="badge b">${esc(school.nama)}</span></div>
+
+    <div class="hero">
+      <div class="eyebrow">Kehadiran RMT · ${MONTHS[m]} ${y}</div>
+      <div class="big">${mPct==null?'—':mPct}<small>%</small></div>
+      <div class="sub">${mTot? mH+' kehadiran daripada '+mTot+' rekod ditanda bulan ini'
+        : 'Belum ada rekod ditanda bulan ini. Mula di Kehadiran atau Imbas QR.'}</div>
+      <div class="hero-row">
+        <div class="cell"><div class="v">${hadir}</div><div class="k">Hadir hari ini</div></div>
+        <div class="cell"><div class="v">${tidak}</div><div class="k">Tidak hadir</div></div>
+        <div class="cell"><div class="v">${rmtAktif.length}</div><div class="k">Murid RMT</div></div>
+      </div>
+    </div>
+
     <div class="stat-grid">
       ${stat('g',IC.student,rmtAktif.length,'Murid RMT aktif')}
       ${stat('b',IC.cls,classes.length,'Jumlah kelas')}
-      ${stat('g',IC.check,hadir,'Hadir hari ini ('+d+' '+MONTHS[m]+')')}
+      ${stat('g',IC.check,hadir,'Hadir hari ini · '+d+' '+MONTHS[m])}
       ${stat('r',IC.check,tidak,'Tidak hadir hari ini')}
       ${stat('b',IC.teacher,teachers.length,'Jumlah guru')}
       ${stat('o',IC.teacher,users.length,'Jumlah pengguna')}
     </div>
+
     <div class="card">
-      <h3 style="margin:0 0 4px">Peratus kehadiran bulanan · ${y}</h3>
+      <h3 style="margin:0 0 4px">Kehadiran bulanan ${y}</h3>
       <p style="color:var(--muted);margin:0 0 14px;font-size:13px">Purata kehadiran murid RMT setiap bulan</p>
       ${monthly}
     </div>`;
