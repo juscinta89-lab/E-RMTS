@@ -4,6 +4,14 @@
    ========================================================= */
 'use strict';
 
+/* MULTI-SEKOLAH: ID sekolah ditetapkan oleh loader dalam index.html (?s=namasekolah).
+   Setiap sekolah -> projek Firebase BERASINGAN (data terasing sepenuhnya).
+   Kunci storan tempatan dinamakan ikut sekolah supaya sesi/tema tidak bercampur
+   jika satu peranti digunakan untuk lebih dari satu sekolah. */
+const TENANT = window.__SCHOOL_ID__ || 'default';
+const SESS_KEY = 'rmt_current_' + TENANT;
+const THEME_KEY = 'rmt_themecolor_' + TENANT;
+
 /* ---------------------------------------------------------
    0. Ikon (SVG inline, Material-style)
 --------------------------------------------------------- */
@@ -23,6 +31,7 @@ const IC = {
   moon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg>',
   print:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>',
   x:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>',
+  qr:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3h-3zM20 14h1M14 20h1M20 20h1M17 17h4v4h-4z"/></svg>',
   chart:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6"/><rect x="12" y="8" width="3" height="10"/><rect x="17" y="5" width="3" height="13"/></svg>',
   file:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h6"/></svg>',
   empty:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 12l9 4 9-4M3 17l9 4 9-4"/></svg>'
@@ -55,10 +64,10 @@ function applyTheme(hex){
   r.setProperty('--green-soft',dark?shadeHex(hex,-0.72):shadeHex(hex,0.88));
   const meta=document.querySelector('meta[name="theme-color"]');
   if(meta)meta.setAttribute('content',hex);
-  try{localStorage.setItem('rmt_themecolor',hex);}catch(e){}
+  try{localStorage.setItem(THEME_KEY,hex);}catch(e){}
 }
 // terap serta-merta dari cache (elak kelipan warna lama)
-(function(){try{const t=localStorage.getItem('rmt_themecolor');if(t)applyTheme(t);}catch(e){}})();
+(function(){try{const t=localStorage.getItem(THEME_KEY);if(t)applyTheme(t);}catch(e){}})();
 
 function yearRange(){ const y=new Date().getFullYear(); const out=[];
   for(let i=2025;i<=y+1;i++) out.push(i); return out; }
@@ -138,7 +147,7 @@ const SEED = {
   holidays:[]
 };
 
-const LS_KEY='rmt_skb_demo_v1';
+const LS_KEY='rmt_demo_'+TENANT;
 function loadDemo(){
   try{const raw=localStorage.getItem(LS_KEY);if(raw)return JSON.parse(raw);}catch(e){}
   const copy=JSON.parse(JSON.stringify(SEED)); saveDemo(copy); return copy;
@@ -388,7 +397,7 @@ async function resolveProfile(user){
       }
     }catch(e){}
   }
-  sessionStorage.setItem('rmt_current',JSON.stringify(CURRENT));
+  sessionStorage.setItem(SESS_KEY,JSON.stringify(CURRENT));
 }
 
 async function doGoogleLogin(){
@@ -415,16 +424,16 @@ async function doLogin(username,password){
     const u=DEMO.users.find(x=>x.username===username && x.password===password && x.aktif);
     if(!u) throw new Error('ID pengguna atau kata laluan salah.');
     CURRENT={...u};
-    sessionStorage.setItem('rmt_current',JSON.stringify(CURRENT));
+    sessionStorage.setItem(SESS_KEY,JSON.stringify(CURRENT));
   }
 }
 function restoreSession(){
-  try{const c=sessionStorage.getItem('rmt_current');if(c){CURRENT=JSON.parse(c);return true;}}catch(e){}
+  try{const c=sessionStorage.getItem(SESS_KEY);if(c){CURRENT=JSON.parse(c);return true;}}catch(e){}
   return false;
 }
 async function doLogout(){
   if(USE_FIREBASE) await fbAuth.signOut();
-  CURRENT=null; sessionStorage.removeItem('rmt_current');
+  CURRENT=null; sessionStorage.removeItem(SESS_KEY);
   location.hash=''; renderAuth();
 }
 
@@ -462,7 +471,7 @@ async function doRegister(nama,email,pass){
     const u={id:uid(),nama,username:email,email,password:pass,role:'Administrator',jawatan:'Administrator',aktif:true,kelasId:null};
     DEMO.users.push(u); saveDemo(DEMO); CURRENT={...u};
   }
-  sessionStorage.setItem('rmt_current',JSON.stringify(CURRENT));
+  sessionStorage.setItem(SESS_KEY,JSON.stringify(CURRENT));
 }
 
 /* ---------------------------------------------------------
@@ -472,9 +481,14 @@ function renderAuth(mode){
   mode=mode||'login';
   $('#app').classList.remove('active');
   const root=$('#auth'); root.style.display='grid';
-  const modeTag = USE_FIREBASE
-     ? '<p style="color:var(--blue);font-size:12px">Mod Firebase aktif</p>'
-     : '<p style="color:var(--warn);font-size:12px">Mod Demo — data dalam pelayar ini sahaja</p>';
+  let modeTag;
+  if(USE_FIREBASE){
+    modeTag='<p style="color:var(--blue);font-size:12px">Mod Firebase aktif'+(window.__SCHOOL_ID__?' · '+esc(window.__SCHOOL_ID__):'')+'</p>';
+  }else if(window.__SCHOOL_ID__){
+    modeTag='<p style="color:var(--danger);font-size:12px;font-weight:700">⚠ Config sekolah "'+esc(window.__SCHOOL_ID__)+'" tidak dijumpai atau belum diisi. Hubungi penyedia sistem.</p>';
+  }else{
+    modeTag='<p style="color:var(--warn);font-size:12px">Mod Demo — data dalam pelayar ini sahaja</p>';
+  }
   const brand=`<div class="auth-brand">
         <div class="auth-logo">RMT</div>
         <h1>RMT Attendance SK Belukar</h1>
@@ -551,6 +565,7 @@ function renderAuth(mode){
 const NAV=[
   {id:'dashboard',label:'Dashboard',short:'Utama',icon:'dash',all:true},
   {id:'kehadiran',label:'Kehadiran (C8)',short:'Kehadiran',icon:'check',all:true},
+  {id:'imbas',label:'Imbas QR Kehadiran',short:'Imbas',icon:'qr',all:true},
   {id:'murid',label:'Maklumat Murid',short:'Murid',icon:'student',all:true},
   {id:'borang',label:'Borang C1/C2',short:'Borang',icon:'file',all:true},
   {id:'rumusan',label:'Rumusan Kehadiran',short:'Rumusan',icon:'chart',all:true},
@@ -611,13 +626,14 @@ function setActiveNav(id){
 }
 
 function route(){
+  if(typeof stopScan==='function') stopScan(); // matikan kamera bila tukar halaman
   if(!CURRENT){renderAuth();return;}
   const page=(location.hash||'#dashboard').slice(1);
   setActiveNav(page);
   const v=$('#view'); if(!v)return;
   v.innerHTML='<div class="center-load"><span class="spinner dark"></span></div>';
   ({dashboard:pageDashboard,kehadiran:pageKehadiran,murid:pageMurid,
-    kelas:pageKelas,guru:pageGuru,kalendar:pageKalendar,borang:pageBorang,rumusan:pageRumusan,tetapan:pageTetapan}[page]||pageDashboard)(v);
+    kelas:pageKelas,guru:pageGuru,kalendar:pageKalendar,borang:pageBorang,rumusan:pageRumusan,imbas:pageImbas,tetapan:pageTetapan}[page]||pageDashboard)(v);
 }
 window.addEventListener('hashchange',route);
 
@@ -626,7 +642,7 @@ function toggleDark(){
   const d=document.documentElement.getAttribute('data-theme')==='dark'?'':'dark';
   document.documentElement.setAttribute('data-theme',d);
   localStorage.setItem('rmt_theme',d);
-  try{const t=localStorage.getItem('rmt_themecolor');if(t)applyTheme(t);}catch(e){}
+  try{const t=localStorage.getItem(THEME_KEY);if(t)applyTheme(t);}catch(e){}
 }
 (function initTheme(){const t=localStorage.getItem('rmt_theme');if(t)document.documentElement.setAttribute('data-theme',t);})();
 
@@ -1432,6 +1448,191 @@ async function printBorang(){
     catch(e){toast('Gagal cetak: '+e.message,'err');} setTimeout(()=>fr.remove(),3000); },200); };
 }
 
+
+
+/* ---------------------------------------------------------
+   HALAMAN: Imbas QR Kehadiran
+--------------------------------------------------------- */
+const SCAN={stream:null,raf:0,active:false,count:0,cool:{},students:null,attCache:{},sahCache:{}};
+
+function stopScan(){
+  SCAN.active=false;
+  if(SCAN.raf)cancelAnimationFrame(SCAN.raf);
+  if(SCAN.stream){SCAN.stream.getTracks().forEach(t=>t.stop());SCAN.stream=null;}
+  const b=$('#sc-start'); if(b){b.textContent='📷 Mula Imbas';b.classList.remove('btn-danger');}
+}
+
+function beepOK(){
+  try{
+    const ctx=new (window.AudioContext||window.webkitAudioContext)();
+    const o=ctx.createOscillator(),g=ctx.createGain();
+    o.connect(g);g.connect(ctx.destination);o.frequency.value=1200;g.gain.value=.15;
+    o.start();o.stop(ctx.currentTime+.12);
+  }catch(e){}
+  try{navigator.vibrate&&navigator.vibrate(80);}catch(e){}
+}
+
+async function pageImbas(v){
+  const classes=sortCls(await DB.getClasses());
+  const kOpts=classes.map(c=>`<option value="${c.id}">${esc(clsLabel(c))}</option>`).join('');
+  if(!onPage('imbas'))return;
+  v.innerHTML=`
+    <div class="page-head"><h2>Imbas QR Kehadiran</h2></div>
+
+    <div class="card" style="max-width:560px">
+      <h3 style="margin:0 0 4px">Pengimbas</h3>
+      <p style="color:var(--muted);font-size:13px;margin:0 0 12px">
+        Imbas kad QR murid — kehadiran <b>hari ini</b> terus ditanda ✓ dalam Borang C8.
+        Murid yang tidak diimbas kekal kosong (guru tanda ✕ dalam C8 seperti biasa).</p>
+      <div class="scan-wrap"><video id="sc-video" playsinline muted></video>
+        <div class="scan-frame"></div></div>
+      <canvas id="sc-canvas" style="display:none"></canvas>
+      <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">
+        <button class="btn btn-primary" id="sc-start">📷 Mula Imbas</button>
+        <span style="align-self:center;color:var(--muted);font-size:13px">Sesi ini: <b id="sc-count">0</b> murid</span>
+      </div>
+      <div id="sc-status" style="margin-top:12px"></div>
+      <div class="field" style="margin-top:14px"><label>Atau taip ID murid (jika kamera bermasalah)</label>
+        <div style="display:flex;gap:8px">
+          <input id="sc-manual" placeholder="ID murid / kandungan QR">
+          <button class="btn" id="sc-manual-go">Rekod</button>
+        </div></div>
+      <div id="sc-list" style="margin-top:8px"></div>
+    </div>
+
+    <div class="card" style="max-width:560px;margin-top:18px">
+      <h3 style="margin:0 0 4px">Cetak Kad QR Murid</h3>
+      <p style="color:var(--muted);font-size:13px;margin:0 0 12px">
+        Cetak kad QR untuk setiap murid (8 kad sehalaman A4). Laminasi & edarkan —
+        murid tunjuk kad semasa RMT.</p>
+      <div style="display:flex;gap:10px;align-items:end;flex-wrap:wrap">
+        <div class="field" style="margin:0;min-width:200px"><label>Kelas</label>
+          <select id="qc-kelas">${kOpts}</select></div>
+        <button class="btn btn-blue" id="qc-print">${IC.print} Cetak Kad QR</button>
+      </div>
+    </div>`;
+
+  SCAN.count=0; SCAN.cool={}; SCAN.students=null; SCAN.attCache={}; SCAN.sahCache={};
+  $('#sc-start').onclick=()=>{ SCAN.active?stopScan():startScan(); };
+  $('#sc-manual-go').onclick=()=>{ const t=$('#sc-manual').value.trim(); if(t){handleScanText(t);$('#sc-manual').value='';} };
+  $('#sc-manual').addEventListener('keydown',e=>{if(e.key==='Enter')$('#sc-manual-go').click();});
+  $('#qc-print').onclick=()=>printQRCards($('#qc-kelas').value);
+}
+
+function scanStatus(html,type){
+  const el=$('#sc-status'); if(!el)return;
+  el.innerHTML=`<div class="sah-banner ${type==='ok'?'open':''}" style="${type==='err'?'background:var(--danger-soft);border-color:var(--danger)':''}">${html}</div>`;
+}
+
+async function startScan(){
+  const video=$('#sc-video');
+  try{
+    SCAN.stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+  }catch(e){
+    scanStatus('Kamera tidak dapat diakses: '+esc(e.message)+'. Guna ruang taip ID di bawah.','err'); return;
+  }
+  video.srcObject=SCAN.stream; await video.play();
+  SCAN.active=true;
+  const b=$('#sc-start'); b.textContent='⏹ Henti'; b.classList.add('btn-danger');
+  scanStatus('Kamera aktif — halakan ke kad QR murid.','');
+
+  let detector=null;
+  if('BarcodeDetector' in window){
+    try{ detector=new window.BarcodeDetector({formats:['qr_code']}); }catch(e){}
+  }
+  const canvas=$('#sc-canvas'), ctx=canvas.getContext('2d');
+  const loop=async()=>{
+    if(!SCAN.active)return;
+    try{
+      if(detector){
+        const codes=await detector.detect(video);
+        if(codes.length) handleScanText(codes[0].rawValue);
+      }else if(typeof jsQR!=='undefined' && video.videoWidth){
+        canvas.width=video.videoWidth; canvas.height=video.videoHeight;
+        ctx.drawImage(video,0,0);
+        const img=ctx.getImageData(0,0,canvas.width,canvas.height);
+        const code=jsQR(img.data,img.width,img.height,{inversionAttempts:'dontInvert'});
+        if(code&&code.data) handleScanText(code.data);
+      }
+    }catch(e){}
+    SCAN.raf=requestAnimationFrame(loop);
+  };
+  loop();
+}
+
+async function handleScanText(raw){
+  const now=Date.now();
+  if(SCAN.cool[raw] && now-SCAN.cool[raw]<3000) return; // elak imbasan berganda
+  SCAN.cool[raw]=now;
+
+  let sid=raw.startsWith('RMT:')?raw.slice(4):raw;
+  if(!SCAN.students) SCAN.students=await DB.getStudents();
+  const st=SCAN.students.find(x=>x.id===sid);
+  if(!st){ scanStatus('❌ QR/ID tidak dikenali sebagai murid.','err'); return; }
+  if(st.statusRMT!=='Aktif'){ scanStatus(`❌ ${esc(st.nama)} — status ${esc(st.statusRMT)}, bukan murid RMT aktif.`,'err'); return; }
+  if(!st.kelasId){ scanStatus(`❌ ${esc(st.nama)} tiada kelas. Tetapkan kelas di Maklumat Murid.`,'err'); return; }
+
+  const t=new Date(), y=t.getFullYear(), m=t.getMonth(), d=t.getDate();
+  if(isWeekend(y,m,d)||isHoliday(y,m,d)){
+    scanStatus('❌ Hari ini bukan hari persekolahan (cuti). Imbasan tidak direkod.','err'); return;
+  }
+  // kunci pengesahan
+  const sahKey=st.kelasId+'_'+y+'_'+m;
+  if(!(sahKey in SCAN.sahCache)) SCAN.sahCache[sahKey]=await DB.getSah(st.kelasId,y,m);
+  if(SCAN.sahCache[sahKey]){ scanStatus('❌ Kehadiran bulan ini telah DISAHKAN & dikunci untuk kelas '+esc(st.nama)+'.','err'); return; }
+  // duplikat hari ini
+  if(!(sahKey in SCAN.attCache)) SCAN.attCache[sahKey]=await DB.getAttendance(st.kelasId,y,m);
+  const sudah=SCAN.attCache[sahKey][st.id]?.[d];
+  if(sudah==='H'){ scanStatus(`ℹ️ ${esc(st.nama)} — sudah direkod hadir hari ini.`,''); return; }
+
+  await DB.saveAttendanceCell(st.kelasId,y,m,st.id,d,'H');
+  SCAN.attCache[sahKey][st.id]=SCAN.attCache[sahKey][st.id]||{};
+  SCAN.attCache[sahKey][st.id][d]='H';
+  SCAN.count++; const c=$('#sc-count'); if(c)c.textContent=SCAN.count;
+  const cls=(await DB.getClasses()).find(x=>x.id===st.kelasId);
+  beepOK();
+  scanStatus(`✅ <b>${esc(st.nama)}</b> — ${esc(clsLabel(cls))} · HADIR ${d} ${MONTHS[m]}`,'ok');
+  const list=$('#sc-list');
+  if(list) list.insertAdjacentHTML('afterbegin',
+    `<div class="holi-row"><span class="dt">${t.toLocaleTimeString('ms-MY',{hour:'2-digit',minute:'2-digit'})}</span><span class="nm">${esc(st.nama)}</span><span style="color:var(--ok);font-weight:800">✓</span></div>`);
+  DB.addLog('Imbas QR hadir',st.nama);
+}
+
+/* Cetak kad QR — 8 kad sehalaman A4 */
+async function printQRCards(kelasId){
+  if(typeof qrcode==='undefined'){ toast('Pustaka QR belum dimuat. Semak sambungan internet & muat semula.','err'); return; }
+  const [students,classes,school]=await Promise.all([DB.getStudents(),DB.getClasses(),DB.getSchool()]);
+  const cls=classes.find(c=>c.id===kelasId)||{};
+  const roster=students.filter(s=>s.kelasId===kelasId&&s.statusRMT==='Aktif')
+    .sort((a,b)=>a.nama.localeCompare(b.nama));
+  if(!roster.length){ toast('Tiada murid RMT aktif dalam kelas ini.','err'); return; }
+  const cards=roster.map(st=>{
+    const q=qrcode(0,'M'); q.addData('RMT:'+st.id); q.make();
+    return `<div class="kad">
+      <div class="sek">${esc(school.nama||'')}</div>
+      ${q.createSvgTag({cellSize:3,margin:0,scalable:true})}
+      <div class="nm">${esc(st.nama)}</div>
+      <div class="kl">${esc(clsLabel(cls))} · KAD RMT</div>
+    </div>`;
+  }).join('');
+  const html=`<!DOCTYPE html><html lang="ms"><head><meta charset="utf-8"><title>Kad QR — ${esc(clsLabel(cls))}</title><style>
+    @page{size:A4 portrait;margin:8mm}
+    *{box-sizing:border-box}
+    body{font-family:Arial,Helvetica,sans-serif;margin:0;display:flex;flex-wrap:wrap;align-content:flex-start}
+    .kad{width:50%;height:70mm;border:1px dashed #999;padding:5mm;display:flex;flex-direction:column;
+      align-items:center;justify-content:center;text-align:center;page-break-inside:avoid}
+    .kad svg{width:34mm;height:34mm}
+    .sek{font-size:8px;font-weight:bold;margin-bottom:2mm;text-transform:uppercase}
+    .nm{font-size:11px;font-weight:bold;margin-top:2mm}
+    .kl{font-size:9px;color:#333;margin-top:1mm}
+  </style></head><body>${cards}</body></html>`;
+  const fr=document.createElement('iframe');
+  fr.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0';
+  document.body.appendChild(fr); fr.srcdoc=html;
+  fr.onload=()=>{setTimeout(()=>{try{fr.contentWindow.focus();fr.contentWindow.print();}
+    catch(e){toast('Gagal cetak: '+e.message,'err');} setTimeout(()=>fr.remove(),4000);},250);};
+  DB.addLog('Cetak kad QR',clsLabel(cls)+' ('+roster.length+' murid)');
+}
 
 /* Cetak pukal: borang C8 SEMUA kelas utk bulan/tahun semasa, satu kelas satu halaman */
 async function c8SectionHTML(school,users,cls,year,month){

@@ -1,10 +1,12 @@
 /* =========================================================
-   KONFIGURASI FIREBASE
+   TEMPLATE CONFIG SEKOLAH — salin fail ini untuk sekolah baru
    ---------------------------------------------------------
-   1. Pergi ke https://console.firebase.google.com
-   2. Buat projek baru (cth: rmt-sk-belukar)
-   3. Add app > Web (</>) > salin nilai firebaseConfig di bawah
-   4. Aktifkan: Authentication (Email/Password) + Firestore Database
+   1. Salin fail ini, namakan ikut ID sekolah (huruf kecil,
+      tanpa ruang), cth:  skbelukar.js , skseberang.js
+   2. Isi nilai firebaseConfig dari projek Firebase SEKOLAH ITU
+      (setiap sekolah = projek Firebase berasingan!)
+   3. Commit & push ke GitHub.
+   4. Link sekolah: https://USERNAME.github.io/REPO/?s=skbelukar
    ========================================================= */
 
 const firebaseConfig = {

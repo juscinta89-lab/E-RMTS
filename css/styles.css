@@ -394,3 +394,20 @@ input.mini{width:56px;padding:5px 4px;font-size:12px;text-align:center;border-ra
     font-weight:800}
   .bnav-item.active svg{transform:translateY(-1px)}
 }
+
+/* =========================================================
+   Pengimbas QR
+   ========================================================= */
+.scan-wrap{position:relative;border-radius:14px;overflow:hidden;background:#000;aspect-ratio:4/3;max-height:340px}
+.scan-wrap video{width:100%;height:100%;object-fit:cover;display:block}
+.scan-frame{position:absolute;inset:0;pointer-events:none;
+  background:
+    linear-gradient(var(--green),var(--green)) top left/28px 3px no-repeat,
+    linear-gradient(var(--green),var(--green)) top left/3px 28px no-repeat,
+    linear-gradient(var(--green),var(--green)) top right/28px 3px no-repeat,
+    linear-gradient(var(--green),var(--green)) top right/3px 28px no-repeat,
+    linear-gradient(var(--green),var(--green)) bottom left/28px 3px no-repeat,
+    linear-gradient(var(--green),var(--green)) bottom left/3px 28px no-repeat,
+    linear-gradient(var(--green),var(--green)) bottom right/28px 3px no-repeat,
+    linear-gradient(var(--green),var(--green)) bottom right/3px 28px no-repeat;
+  margin:14%}
