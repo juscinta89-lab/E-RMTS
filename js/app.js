@@ -1492,11 +1492,9 @@ async function pageImbas(v){
         <span style="align-self:center;color:var(--muted);font-size:13px">Sesi ini: <b id="sc-count">0</b> murid</span>
       </div>
       <div id="sc-status" style="margin-top:12px"></div>
-      <div class="field" style="margin-top:14px"><label>Atau taip ID murid (jika kamera bermasalah)</label>
-        <div style="display:flex;gap:8px">
-          <input id="sc-manual" placeholder="ID murid / kandungan QR">
-          <button class="btn" id="sc-manual-go">Rekod</button>
-        </div></div>
+      <div class="field" style="margin-top:14px"><label>Atau cari nama murid (jika kamera bermasalah / kad tertinggal)</label>
+        <input id="sc-manual" placeholder="Taip nama murid… (min. 2 huruf)" autocomplete="off">
+        <div id="sc-results"></div></div>
       <div id="sc-list" style="margin-top:8px"></div>
     </div>
 
@@ -1514,8 +1512,26 @@ async function pageImbas(v){
 
   SCAN.count=0; SCAN.cool={}; SCAN.students=null; SCAN.attCache={}; SCAN.sahCache={};
   $('#sc-start').onclick=()=>{ SCAN.active?stopScan():startScan(); };
-  $('#sc-manual-go').onclick=()=>{ const t=$('#sc-manual').value.trim(); if(t){handleScanText(t);$('#sc-manual').value='';} };
-  $('#sc-manual').addEventListener('keydown',e=>{if(e.key==='Enter')$('#sc-manual-go').click();});
+  $('#sc-manual').oninput=async e=>{
+    const q=e.target.value.trim().toLowerCase();
+    const box=$('#sc-results'); if(!box)return;
+    if(q.length<2){box.innerHTML='';return;}
+    if(q.startsWith('rmt:')){box.innerHTML='';handleScanText(e.target.value.trim());e.target.value='';return;}
+    if(!SCAN.students) SCAN.students=await DB.getStudents();
+    const classes=SCAN.classes||(SCAN.classes=await DB.getClasses());
+    const match=SCAN.students
+      .filter(st=>st.statusRMT==='Aktif'&&st.nama.toLowerCase().includes(q))
+      .slice(0,8);
+    box.innerHTML=match.length?match.map(st=>{
+      const c=classes.find(x=>x.id===st.kelasId);
+      return `<div class="sc-hit" data-sid="${st.id}"><b>${esc(st.nama)}</b><span>${esc(clsLabel(c))}</span></div>`;
+    }).join(''):'<div class="sc-hit" style="color:var(--muted);cursor:default">Tiada murid padanan.</div>';
+    $$('#sc-results .sc-hit[data-sid]').forEach(el=>el.onclick=()=>{
+      const st=SCAN.students.find(x=>x.id===el.dataset.sid);
+      $('#sc-manual').value=''; box.innerHTML='';
+      if(st) markStudent(st);
+    });
+  };
   $('#qc-print').onclick=()=>printQRCards($('#qc-kelas').value);
 }
 
@@ -1568,7 +1584,11 @@ async function handleScanText(raw){
   let sid=raw.startsWith('RMT:')?raw.slice(4):raw;
   if(!SCAN.students) SCAN.students=await DB.getStudents();
   const st=SCAN.students.find(x=>x.id===sid);
-  if(!st){ scanStatus('❌ QR/ID tidak dikenali sebagai murid.','err'); return; }
+  if(!st){ scanStatus('❌ QR tidak dikenali sebagai murid.','err'); return; }
+  await markStudent(st);
+}
+
+async function markStudent(st){
   if(st.statusRMT!=='Aktif'){ scanStatus(`❌ ${esc(st.nama)} — status ${esc(st.statusRMT)}, bukan murid RMT aktif.`,'err'); return; }
   if(!st.kelasId){ scanStatus(`❌ ${esc(st.nama)} tiada kelas. Tetapkan kelas di Maklumat Murid.`,'err'); return; }
 
