@@ -31,6 +31,14 @@ GitHub Pages (satu sahaja)
 1. Salin `configs/contoh-sekolah.js` → namakan `configs/skseberang.js`
    (ID: huruf kecil, tanpa ruang — ini akan jadi `?s=skseberang`).
 2. Tampal nilai `firebaseConfig` dari langkah A6.
+   **Jangan lupa isi juga nama sekolah** di bahagian atas fail:
+   ```js
+   window.__SCHOOL_NAME__  = "SEKOLAH KEBANGSAAN SEBERANG";  // skrin login & laporan
+   window.__SCHOOL_SHORT__ = "SK Seberang";                  // topbar & nama ikon app
+   ```
+   Nama inilah yang muncul pada skrin log masuk, topbar, tajuk tab, dan nama
+   aplikasi semasa guru install PWA. Kalau dibiarkan kosong, app papar
+   "RMT Attendance" sehingga admin sekolah mengisi Tetapan Sekolah.
 3. Commit & push. Tunggu GitHub Pages siap (±1 minit).
 
 ### C. Serahkan kepada sekolah

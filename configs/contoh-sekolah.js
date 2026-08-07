@@ -9,6 +9,11 @@
    4. Link sekolah: https://USERNAME.github.io/REPO/?s=skbelukar
    ========================================================= */
 
+/* Nama sekolah — dipaparkan pada skrin log masuk, topbar,
+   dan nama aplikasi semasa dipasang (install PWA). */
+window.__SCHOOL_NAME__  = "SEKOLAH KEBANGSAAN CONTOH";  // nama penuh
+window.__SCHOOL_SHORT__ = "SK Contoh";                  // nama pendek (topbar/ikon)
+
 const firebaseConfig = {
   apiKey:            "GANTIKAN_API_KEY",
   authDomain:        "GANTIKAN.firebaseapp.com",
