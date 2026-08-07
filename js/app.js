@@ -962,8 +962,8 @@ function paintDaily(){
   const rowsHtml=roster.map(s=>{
     const mk=rec[s.id]&&rec[s.id][td];
     const sym=mk==='H'?'✓':mk==='X'?'✕':'';
-    const symColor=mk==='X'?'var(--green)':'var(--ink)';
-    const bar=mk==='H'?'var(--ink)':mk==='X'?'var(--green)':'var(--line)';
+    const symColor=mk==='H'?'var(--ok)':mk==='X'?'var(--danger)':'var(--ink)';
+    const bar=mk==='H'?'var(--ok)':mk==='X'?'var(--danger)':'var(--line)';
     return `<div class="daily-row">
       <div class="daily-row-bg"><span class="daily-bg-l">✓ Hadir</span><span class="daily-bg-r">Tidak hadir ✕</span></div>
       <div class="daily-row-front" data-sid="${s.id}">
