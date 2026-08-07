@@ -22,7 +22,7 @@ function schoolNames(){
   try{ cached=JSON.parse(localStorage.getItem(NAME_KEY)||'{}'); }catch(e){}
   const penuh = window.__SCHOOL_NAME__  || cached.penuh || '';
   const pendek= window.__SCHOOL_SHORT__ || cached.pendek || '';
-  return {penuh, pendek: pendek || penuh || 'e-RMTS'};
+  return {penuh, pendek: pendek || penuh || 'e-RMT'};
 }
 function simpanNamaSekolah(nama){
   if(!nama)return;
@@ -32,7 +32,7 @@ function simpanNamaSekolah(nama){
 // Tajuk tab + nama app semasa install PWA mengikut sekolah
 function terapkanIdentiti(){
   const n=schoolNames();
-  const tajuk = n.penuh ? ('e-RMTS · '+n.pendek) : 'e-RMTS';
+  const tajuk = n.penuh ? ('e-RMT · '+n.pendek) : 'e-RMT';
   document.title = tajuk;
   const am=document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if(am) am.setAttribute('content', n.pendek);
@@ -40,7 +40,7 @@ function terapkanIdentiti(){
     const link=document.querySelector('link[rel="manifest"]');
     if(!link)return;
     fetch(link.getAttribute('href')).then(r=>r.json()).then(m=>{
-      m.name = n.penuh ? ('e-RMTS · '+n.penuh) : m.name;
+      m.name = n.penuh ? ('e-RMT · '+n.penuh) : m.name;
       m.short_name = n.pendek.slice(0,12);
       const url=URL.createObjectURL(new Blob([JSON.stringify(m)],{type:'application/manifest+json'}));
       link.setAttribute('href',url);
@@ -103,7 +103,7 @@ function applyTheme(hex){
   try{localStorage.setItem(THEME_KEY,hex);}catch(e){}
 }
 // terap serta-merta dari cache (elak kelipan warna lama)
-(function(){try{const t=localStorage.getItem(THEME_KEY);applyTheme(t||'#023075');}catch(e){}})();
+(function(){try{const t=localStorage.getItem(THEME_KEY);applyTheme(t||'#3D7E24');}catch(e){}})();
 
 function yearRange(){ const y=new Date().getFullYear(); const out=[];
   for(let i=2025;i<=y+1;i++) out.push(i); return out; }
@@ -438,7 +438,7 @@ async function loadConfig(){
     APP_CFG.restDays = Array.isArray(s.restDays)&&s.restDays.length? s.restDays : [0,6];
     APP_CFG.sesi = s.sesi || new Date().getFullYear();
     if(s.nama){ simpanNamaSekolah(s.nama); terapkanIdentiti(); }
-    applyTheme(s.themeColor||'#023075');
+    applyTheme(s.themeColor||'#3D7E24');
     APP_CFG.holidays = await DB.listHolidays();
   }catch(e){ /* biar lalai */ }
 }
@@ -565,9 +565,9 @@ function renderAuth(mode){
     modeTag='<p style="color:var(--warn);font-size:12px">Mod Demo — data dalam pelayar ini sahaja</p>';
   }
   const brand=`<div class="auth-brand">
-        <img class="auth-logo" src="./assets/logo.png" alt="e-RMTS">
+        <img class="auth-logo" src="./assets/logo.png" alt="e-RMT">
         <h1>${esc(schoolNames().pendek)}</h1>
-        <p>Rekod · Monitor · Tindakan · Sistem</p>${modeTag}</div>`;
+        <p>E-Rekod RMT System</p>${modeTag}</div>`;
 
   /* ----- DAFTAR ----- */
   if(mode==='register'){
@@ -2303,12 +2303,12 @@ async function pageTetapan(v){
       <p style="color:var(--muted);font-size:13px;margin:0 0 12px">
         Pilih warna rasmi sekolah — seluruh aplikasi (topbar, butang, menu) akan mengikut warna ini.</p>
       <div class="swatches" id="s-swatches">
-        ${['#023075','#0B7A3B','#1565C0','#8E1B1B','#6A1B9A','#00695C','#E65100','#B8860B']
+        ${['#3D7E24','#022148','#0B7A3B','#1565C0','#8E1B1B','#6A1B9A','#00695C','#E65100']
           .map(c=>`<button class="swatch" data-c="${c}" style="background:${c}" title="${c}"></button>`).join('')}
         <label class="swatch custom" title="Warna sendiri">🎨
-          <input type="color" id="s-custcolor" value="${esc(s.themeColor||'#023075')}" style="opacity:0;position:absolute;inset:0;cursor:pointer"></label>
+          <input type="color" id="s-custcolor" value="${esc(s.themeColor||'#3D7E24')}" style="opacity:0;position:absolute;inset:0;cursor:pointer"></label>
       </div>
-      <p style="font-size:12px;color:var(--muted);margin:10px 0 0">Warna semasa: <b id="s-curcolor">${esc(s.themeColor||'#023075 (navy e-RMTS)')}</b>. Klik warna untuk terap &amp; simpan.</p>
+      <p style="font-size:12px;color:var(--muted);margin:10px 0 0">Warna semasa: <b id="s-curcolor">${esc(s.themeColor||'#3D7E24 (hijau e-RMT)')}</b>. Klik warna untuk terap &amp; simpan.</p>
     </div>
 
     <div class="card" style="max-width:640px;margin-top:18px">

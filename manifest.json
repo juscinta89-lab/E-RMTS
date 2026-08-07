@@ -1,13 +1,13 @@
 {
-  "name": "e-RMTS — Rekod Kehadiran Murid RMT",
-  "short_name": "e-RMTS",
-  "description": "e-RMTS · Rekod, Monitor, Tindakan, Sistem — Kehadiran Murid RMT (Borang C8 KPM)",
+  "name": "e-RMT — E-Rekod RMT System",
+  "short_name": "e-RMT",
+  "description": "e-RMT · E-Rekod RMT System — Kehadiran Murid RMT (Borang C8 KPM)",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#F5F7F9",
-  "theme_color": "#023075",
+  "theme_color": "#3D7E24",
   "lang": "ms",
   "icons": [
     {
