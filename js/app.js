@@ -528,9 +528,9 @@ function renderAuth(mode){
     modeTag='<p style="color:var(--warn);font-size:12px">Mod Demo — data dalam pelayar ini sahaja</p>';
   }
   const brand=`<div class="auth-brand">
-        <div class="auth-logo">RMT</div>
-        <h1>RMT Attendance SK Belukar</h1>
-        <p>Rekod Kehadiran Murid RMT · Borang C8 KPM</p>${modeTag}</div>`;
+        <div class="auth-logo">e-RMTS</div>
+        <h1>RMT Attendance System</h1>
+        <p>Rekod Kehadiran Murid RMT</p>${modeTag}</div>`;
 
   /* ----- DAFTAR ----- */
   if(mode==='register'){
