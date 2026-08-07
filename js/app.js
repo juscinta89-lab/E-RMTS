@@ -850,7 +850,8 @@ function schoolDays(y,m){ // senarai hari persekolahan (bukan cuti mingguan/kele
 /* ---------------------------------------------------------
    8. HALAMAN: Kehadiran (Borang C8)
 --------------------------------------------------------- */
-const C8_STATE={kelasId:null,year:new Date().getFullYear(),month:new Date().getMonth()};
+const C8_STATE={kelasId:null,year:new Date().getFullYear(),month:new Date().getMonth(),tab:'hari'};
+let DAILY_STATE=null;
 
 async function pageKehadiran(v){
   const classes=await DB.getClasses();
@@ -871,27 +872,170 @@ async function pageKehadiran(v){
     <div class="page-head"><h2>Rekod Kehadiran Murid RMT</h2><div class="spacer"></div>
       ${isAdmin()?`<button class="btn" id="printC8All">${IC.print} Cetak Semua Kelas</button>`:''}
       <button class="btn btn-blue" id="printC8">${IC.print} Cetak / PDF</button></div>
-    <div class="c8-toolbar no-print">
-      <div class="field"><label>Kelas</label><select id="c8-kelas">${clsOpts}</select></div>
-      <div class="field"><label>Bulan</label><select id="c8-bulan">${moOpts}</select></div>
-      <div class="field"><label>Tahun</label><select id="c8-tahun">${yOpts}</select></div>
-      <span class="c8-save-tag" id="c8-save"></span>
+    <div class="c8-tabs no-print">
+      <div class="c8-tab" data-tab="hari">Hari ini</div>
+      <div class="c8-tab" data-tab="grid">Grid C8</div>
     </div>
-    <div id="c8-holder"></div>
-    <div class="c8-legend no-print">
-      <span><i style="background:var(--card)"></i> Hadir (H/✓)</span>
-      <span><i style="background:var(--card);color:var(--danger)">✕</i> Tidak hadir (X)</span>
-      <span><i style="background:var(--weekend)"></i> Cuti mingguan (ikut Kumpulan A/B)</span>
-      <span><i style="background:var(--holiday)"></i> Cuti umum</span>
-      <span>Klik sel untuk kitar: kosong → ✓ → ✕ → kosong (auto simpan)</span>
+    <div class="c8-pane c8-daily-pane" id="c8-daily"></div>
+    <div class="c8-pane c8-grid-pane" id="c8-gridpane">
+      <div class="c8-toolbar no-print">
+        <div class="field"><label>Kelas</label><select id="c8-kelas">${clsOpts}</select></div>
+        <div class="field"><label>Bulan</label><select id="c8-bulan">${moOpts}</select></div>
+        <div class="field"><label>Tahun</label><select id="c8-tahun">${yOpts}</select></div>
+        <span class="c8-save-tag" id="c8-save"></span>
+      </div>
+      <div id="c8-holder"></div>
+      <div class="c8-legend no-print">
+        <span><i style="background:var(--bg)"></i> Hadir (H/✓)</span>
+        <span><i style="background:var(--bg);color:var(--green)">✕</i> Tidak hadir (X)</span>
+        <span><i style="background:var(--weekend)"></i> Cuti mingguan (ikut Kumpulan A/B)</span>
+        <span><i style="background:var(--holiday)"></i> Cuti umum</span>
+        <span>Klik sel untuk kitar: kosong → ✓ → ✕ → kosong (auto simpan)</span>
+      </div>
     </div>`;
 
-  $('#c8-kelas').onchange=e=>{C8_STATE.kelasId=e.target.value;renderC8();};
+  $('#c8-kelas').onchange=e=>{C8_STATE.kelasId=e.target.value;renderC8();renderDaily();};
   $('#c8-bulan').onchange=e=>{C8_STATE.month=+e.target.value;renderC8();};
   $('#c8-tahun').onchange=e=>{C8_STATE.year=+e.target.value;renderC8();};
   $('#printC8').onclick=printC8;
   if($('#printC8All'))$('#printC8All').onclick=printC8All;
+
+  $$('.c8-tab').forEach(t=>t.onclick=()=>{ C8_STATE.tab=t.dataset.tab; syncKehadiranTab(); });
+  syncKehadiranTab();
+
   renderC8();
+  renderDaily();
+}
+
+function syncKehadiranTab(){
+  $$('.c8-tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===C8_STATE.tab));
+  const daily=$('#c8-daily'), grid=$('#c8-gridpane');
+  if(daily) daily.classList.toggle('active',C8_STATE.tab==='hari');
+  if(grid) grid.classList.toggle('active',C8_STATE.tab!=='hari');
+}
+
+/* ---- "Hari ini": senarai leret (arah 1a) ---- */
+async function renderDaily(){
+  const host=$('#c8-daily'); if(!host)return;
+  const kelasId=C8_STATE.kelasId;
+  host.innerHTML=skeleton(3);
+  const classes=await DB.getClasses();
+  const cls=classes.find(c=>c.id===kelasId);
+  const now=new Date(); const ty=now.getFullYear(), tm=now.getMonth(), td=now.getDate();
+
+  if(!onPage('kehadiran')||C8_STATE.kelasId!==kelasId) return; // kelas/halaman ditukar semasa memuat
+
+  const headHtml=`<div class="daily-head">
+      <div class="daily-head-top"><div class="daily-head-day">${DAYNAMES[now.getDay()]} · ${td} ${MONTHS[tm]} ${ty}</div><div class="daily-head-form">Borang C8</div></div>
+      <div class="daily-head-bottom"><div class="daily-head-kelas">${esc(clsLabel(cls))}</div></div>
+    </div>`;
+
+  if(isWeekend(ty,tm,td)||isHoliday(ty,tm,td)){
+    const why=isHoliday(ty,tm,td)?('Cuti umum'+(holidayName(ty,tm,td)?' — '+esc(holidayName(ty,tm,td)):'')):'Cuti mingguan';
+    host.innerHTML=headHtml+`<div class="daily-locked">${why} hari ini — tiada kehadiran untuk ditanda. Lihat tab Grid C8 untuk rekod bulan penuh.</div>`;
+    return;
+  }
+
+  const [sahInfo,roster,rec]=await Promise.all([DB.getSah(kelasId,ty,tm),rosterStudents(kelasId,ty),DB.getAttendance(kelasId,ty,tm)]);
+  if(!onPage('kehadiran')||C8_STATE.kelasId!==kelasId) return;
+
+  if(!roster.length){
+    host.innerHTML=headHtml+`<div class="daily-locked">Tiada murid RMT aktif dalam kelas ini.</div>`;
+    return;
+  }
+  if(sahInfo){
+    host.innerHTML=headHtml+`<div class="daily-locked">🔒 Kehadiran ${MONTHS[tm]} ${ty} telah disahkan oleh ${esc(sahInfo.olehNama)} — tidak boleh diubah lagi. Lihat tab Grid C8.</div>`;
+    return;
+  }
+
+  DAILY_STATE={kelasId,cls,ty,tm,td,roster,rec};
+  paintDaily();
+}
+
+function markLabel(mk){ return mk==='H'?'Hadir':mk==='X'?'Tidak hadir':'Belum ditanda'; }
+
+function paintDaily(){
+  const host=$('#c8-daily'); if(!host||!DAILY_STATE)return;
+  const {cls,ty,tm,td,roster,rec}=DAILY_STATE;
+  const done=roster.filter(s=>rec[s.id]&&rec[s.id][td]).length;
+
+  const rowsHtml=roster.map(s=>{
+    const mk=rec[s.id]&&rec[s.id][td];
+    const sym=mk==='H'?'✓':mk==='X'?'✕':'';
+    const symColor=mk==='X'?'var(--green)':'var(--ink)';
+    const bar=mk==='H'?'var(--ink)':mk==='X'?'var(--green)':'var(--line)';
+    return `<div class="daily-row">
+      <div class="daily-row-bg"><span class="daily-bg-l">✓ Hadir</span><span class="daily-bg-r">Tidak hadir ✕</span></div>
+      <div class="daily-row-front" data-sid="${s.id}">
+        <div class="daily-bar" style="background:${bar}"></div>
+        <div class="daily-info">
+          <div class="daily-name">${esc(s.nama)}</div>
+          <div class="daily-meta">Tahun ${s.tahun} · ${s.jantina==='L'?'Lelaki':'Perempuan'} · ${markLabel(mk)}</div>
+        </div>
+        <div class="daily-sym" style="color:${symColor}">${sym}</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  host.innerHTML=`
+    <div class="daily-head">
+      <div class="daily-head-top"><div class="daily-head-day">${DAYNAMES[new Date(ty,tm,td).getDay()]} · ${td} ${MONTHS[tm]} ${ty}</div><div class="daily-head-form">Borang C8</div></div>
+      <div class="daily-head-bottom"><div class="daily-head-kelas">${esc(clsLabel(cls))}</div>
+        <div class="daily-head-count">${done}<small>/${roster.length}</small></div></div>
+    </div>
+    <div class="daily-wrap">${rowsHtml}</div>
+    <div class="daily-hint">Leret kanan untuk hadir, kiri untuk tidak hadir. Auto simpan — tiada butang Simpan.</div>
+    <div class="daily-summary">
+      <div class="daily-summary-lbl">Belum ditanda</div>
+      <div class="daily-summary-val">${roster.length-done}</div>
+      <button class="btn btn-primary" style="width:100%;margin-top:16px" id="daily-submit">Hantar Kehadiran Hari Ini</button>
+    </div>`;
+
+  $$('.daily-row-front').forEach(wireDailyRow);
+  $('#daily-submit').onclick=()=>{
+    const left=roster.length-roster.filter(s=>rec[s.id]&&rec[s.id][td]).length;
+    if(left>0) toast(left+' murid belum ditanda.','err');
+    else toast('Kehadiran hari ini lengkap ✓','ok');
+  };
+}
+
+function wireDailyRow(el){
+  const sid=el.dataset.sid;
+  let startX=0, dragging=false;
+  el.addEventListener('pointerdown',e=>{
+    startX=e.clientX; dragging=true; el.style.transition='none';
+    try{ el.setPointerCapture(e.pointerId); }catch(err){}
+  });
+  el.addEventListener('pointermove',e=>{
+    if(!dragging)return;
+    const dx=Math.max(-150,Math.min(150,e.clientX-startX));
+    el.style.transform=`translateX(${dx}px)`;
+  });
+  const finish=e=>{
+    if(!dragging)return; dragging=false;
+    const dx=e.clientX-startX;
+    el.style.transition='transform .25s cubic-bezier(.16,1,.3,1)';
+    el.style.transform='translateX(0)';
+    if(dx>56) commitDaily(sid,'H');
+    else if(dx<-56) commitDaily(sid,'X');
+  };
+  el.addEventListener('pointerup',finish);
+  el.addEventListener('pointercancel',finish);
+}
+
+async function commitDaily(sid,v){
+  if(!DAILY_STATE)return;
+  const {kelasId,ty,tm,td,rec}=DAILY_STATE;
+  const cur=rec[sid]&&rec[sid][td];
+  const next = cur===v ? null : v;
+  rec[sid]=rec[sid]||{};
+  if(next) rec[sid][td]=next; else delete rec[sid][td];
+  tapHaptic();
+  setTimeout(()=>{ if(DAILY_STATE&&DAILY_STATE.kelasId===kelasId) paintDaily(); },260);
+  try{
+    await DB.saveAttendanceCell(kelasId,ty,tm,sid,td,next);
+    if(C8_STATE.kelasId===kelasId && C8_STATE.year===ty && C8_STATE.month===tm) renderC8();
+  }catch(e){ toast('Gagal simpan: '+e.message,'err'); }
 }
 
 async function renderC8(){
@@ -2266,12 +2410,12 @@ async function pageTetapan(v){
       <p style="color:var(--muted);font-size:13px;margin:0 0 12px">
         Pilih warna rasmi sekolah — seluruh aplikasi (topbar, butang, menu) akan mengikut warna ini.</p>
       <div class="swatches" id="s-swatches">
-        ${['#0B7A3B','#1565C0','#8E1B1B','#6A1B9A','#00695C','#E65100','#283593','#B8860B']
+        ${['#ec3013','#0B7A3B','#1565C0','#8E1B1B','#6A1B9A','#00695C','#283593','#B8860B']
           .map(c=>`<button class="swatch" data-c="${c}" style="background:${c}" title="${c}"></button>`).join('')}
         <label class="swatch custom" title="Warna sendiri">🎨
-          <input type="color" id="s-custcolor" value="${esc(s.themeColor||'#0B7A3B')}" style="opacity:0;position:absolute;inset:0;cursor:pointer"></label>
+          <input type="color" id="s-custcolor" value="${esc(s.themeColor||'#ec3013')}" style="opacity:0;position:absolute;inset:0;cursor:pointer"></label>
       </div>
-      <p style="font-size:12px;color:var(--muted);margin:10px 0 0">Warna semasa: <b id="s-curcolor">${esc(s.themeColor||'#0B7A3B (asal KPM)')}</b>. Klik warna untuk terap &amp; simpan.</p>
+      <p style="font-size:12px;color:var(--muted);margin:10px 0 0">Warna semasa: <b id="s-curcolor">${esc(s.themeColor||'#ec3013 (asal Modernist)')}</b>. Klik warna untuk terap &amp; simpan.</p>
     </div>
 
     <div class="card" style="max-width:640px;margin-top:18px">
