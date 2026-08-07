@@ -514,3 +514,170 @@ table.data tbody tr:hover td{background:var(--green-soft)}
 @media(max-width:860px){
   .bnav-item{text-transform:uppercase;letter-spacing:.04em;font-weight:700}
 }
+
+/* =========================================================
+   GERAKAN — sedikit, bertujuan, berfizik.
+   Setiap animasi menyampaikan maklumat: sesuatu tiba,
+   sesuatu berubah, sesuatu berjaya. Tiada hiasan kosong.
+   ========================================================= */
+:root{
+  --ease-out:cubic-bezier(.16,1,.3,1);      /* nyahpecut pantas, rasa "premium" */
+  --ease-spring:cubic-bezier(.34,1.4,.64,1); /* lajakan halus untuk sentuhan */
+}
+
+@keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+@keyframes riseSm{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@keyframes pop{0%{transform:scale(.7)}55%{transform:scale(1.14)}100%{transform:scale(1)}}
+@keyframes ringOut{from{box-shadow:0 0 0 0 rgba(27,142,60,.45)}to{box-shadow:0 0 0 16px rgba(27,142,60,0)}}
+@keyframes sheen{from{background-position:-180% 0}to{background-position:180% 0}}
+@keyframes modalIn{from{opacity:0;transform:translateY(10px) scale(.97)}to{opacity:1;transform:none}}
+@keyframes barGrow{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+
+/* ---- Ketibaan halaman: kandungan naik ikut turutan bacaan ---- */
+.content .page-head{animation:riseSm .3s var(--ease-out) both}
+.content .hero{animation:rise .44s var(--ease-out) both;animation-delay:.04s}
+.stat-grid .stat{animation:rise .4s var(--ease-out) both}
+.stat-grid .stat:nth-child(1){animation-delay:.06s}
+.stat-grid .stat:nth-child(2){animation-delay:.10s}
+.stat-grid .stat:nth-child(3){animation-delay:.14s}
+.stat-grid .stat:nth-child(4){animation-delay:.18s}
+.stat-grid .stat:nth-child(5){animation-delay:.22s}
+.stat-grid .stat:nth-child(6){animation-delay:.26s}
+.content .card,.content .tbl-wrap,.content .c8-scroll,.content .c8-toolbar{
+  animation:rise .38s var(--ease-out) both;animation-delay:.08s}
+
+/* Baris jadual masuk berperingkat (12 pertama sahaja — selebihnya terus muncul) */
+table.data tbody tr:nth-child(-n+12){animation:riseSm .3s var(--ease-out) both}
+table.data tbody tr:nth-child(1){animation-delay:.10s}
+table.data tbody tr:nth-child(2){animation-delay:.14s}
+table.data tbody tr:nth-child(3){animation-delay:.17s}
+table.data tbody tr:nth-child(4){animation-delay:.20s}
+table.data tbody tr:nth-child(5){animation-delay:.22s}
+table.data tbody tr:nth-child(6){animation-delay:.24s}
+table.data tbody tr:nth-child(n+7):nth-child(-n+12){animation-delay:.26s}
+
+/* Carta bulanan: bar tumbuh dari paksi */
+.content svg rect{transform-origin:center bottom;animation:barGrow .5s var(--ease-out) both}
+
+/* ---- Sentuhan pada sel kehadiran (interaksi paling kerap digunakan) ---- */
+.c8 td.day{transition:background .12s ease}
+.c8 td.day.just-marked{animation:pop .28s var(--ease-spring)}
+
+/* ---- Kejayaan imbasan QR: denyut sekali, bukan berterusan ---- */
+.sah-banner.flash{animation:ringOut .6s ease-out}
+
+/* ---- Butang: turun bila ditekan (rasa fizikal) ---- */
+.btn{transition:transform .12s var(--ease-out),filter .15s,background .15s}
+.btn:active{transform:translateY(2px) scale(.985)}
+.icon-btn{transition:background .15s,transform .12s}
+.icon-btn:active{transform:scale(.9)}
+.nav-item{transition:background .16s var(--ease-out),color .16s}
+.bnav-item.active{animation:pop .3s var(--ease-spring)}
+
+/* ---- Modal & toast ---- */
+.modal{animation:modalIn .26s var(--ease-out)}
+.modal-back{transition:opacity .18s}
+.toast{animation:rise .3s var(--ease-spring)}
+
+/* ---- Rangka pemuatan (skeleton) — lebih baik daripada pemutar ---- */
+.skel{padding:4px 0}
+.skel i{display:block;height:13px;border-radius:7px;margin-bottom:11px;
+  background:linear-gradient(90deg,var(--line) 25%,var(--bg) 45%,var(--line) 65%);
+  background-size:180% 100%;animation:sheen 1.15s linear infinite}
+.skel i:nth-child(1){width:38%;height:19px}
+.skel i:nth-child(2){width:100%}
+.skel i:nth-child(3){width:92%}
+.skel i:nth-child(4){width:96%}
+.skel i:nth-child(5){width:70%}
+
+/* ---- Hormati tetapan kurangkan gerakan ---- */
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.01ms !important;animation-iteration-count:1 !important;
+    transition-duration:.01ms !important;scroll-behavior:auto !important}
+}
+
+/* =========================================================
+   NAVIGASI CECAIR (Liquid Navigation)
+   Bar kaca terapung + penunjuk yang meregang-mengalir.
+   ========================================================= */
+
+/* --- Penunjuk cecair: sisi (desktop) --- */
+.sidebar{position:relative}
+.nav-pill{
+  position:absolute;left:6px;right:6px;top:0;height:0;
+  border-radius:12px;background:var(--green);opacity:0;pointer-events:none;z-index:0;
+  transition:top .34s var(--ease-out),height .34s var(--ease-out),opacity .2s}
+.nav-pill.on{opacity:1}
+.sidebar .nav-item{position:relative;z-index:1}
+.sidebar .nav-item.active{background:transparent;color:#fff}
+
+/* --- Bar bawah: kaca terapung (telefon) --- */
+@media(max-width:860px){
+  .content{padding-bottom:104px}
+  .bottom-nav{
+    left:10px;right:10px;bottom:10px;
+    border-radius:24px;
+    background:rgba(255,255,255,.74);
+    -webkit-backdrop-filter:blur(20px) saturate(180%);
+    backdrop-filter:blur(20px) saturate(180%);
+    border:1px solid rgba(255,255,255,.5);
+    box-shadow:0 10px 30px rgba(16,24,32,.16), 0 2px 6px rgba(16,24,32,.06);
+    padding:7px 7px calc(7px + env(safe-area-inset-bottom)/2);
+    position:fixed;overflow-x:auto;overflow-y:hidden;
+    scrollbar-width:none}
+  .bottom-nav::-webkit-scrollbar{display:none}
+  [data-theme="dark"] .bottom-nav{
+    background:rgba(20,26,33,.74);border-color:rgba(255,255,255,.10);
+    box-shadow:0 10px 30px rgba(0,0,0,.5)}
+
+  /* penunjuk cecair */
+  .bnav-pill{
+    position:absolute;top:7px;bottom:7px;left:0;width:0;
+    border-radius:17px;background:var(--green);opacity:0;pointer-events:none;z-index:0;
+    box-shadow:0 4px 12px -2px var(--green);
+    transition:left .34s var(--ease-out),width .34s var(--ease-out),opacity .2s}
+  .bnav-pill.on{opacity:1}
+
+  .bnav-item{position:relative;z-index:1;background:transparent !important;
+    padding:8px 6px;border-radius:17px;min-width:66px;color:var(--muted)}
+  .bnav-item.active{color:#fff;animation:none}
+  .bnav-item.active svg{transform:translateY(-1px) scale(1.06)}
+  .bnav-item svg{transition:transform .3s var(--ease-spring)}
+}
+
+/* Tiada kaca? kekal legap supaya teks sentiasa terbaca */
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+  @media(max-width:860px){
+    .bottom-nav{background:var(--card)}
+    [data-theme="dark"] .bottom-nav{background:var(--card)}
+  }
+}
+
+/* --- Penghalusan premium navigasi cecair --- */
+@media(max-width:860px){
+  /* Kilauan tepi atas — ciri khas permukaan kaca sebenar */
+  .bottom-nav::before{
+    content:"";position:absolute;top:0;left:16px;right:16px;height:1px;pointer-events:none;
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,.9),transparent);z-index:2}
+  [data-theme="dark"] .bottom-nav::before{
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,.22),transparent)}
+
+  /* Pil: kedalaman halus, bukan warna rata */
+  .bnav-pill{background:linear-gradient(160deg,var(--green),var(--green-dark))}
+
+  /* Label aktif sedikit lebih tegas */
+  .bnav-item span{transition:opacity .25s var(--ease-out),transform .25s var(--ease-out);opacity:.85}
+  .bnav-item.active span{opacity:1;transform:scale(1.03)}
+}
+
+/* Riak sentuhan pada item navigasi */
+.nav-item,.bnav-item{overflow:hidden}
+.ripple{position:absolute;border-radius:50%;pointer-events:none;z-index:2;
+  background:rgba(255,255,255,.45);transform:translate(-50%,-50%) scale(0);
+  animation:rippleOut .55s var(--ease-out) forwards}
+.nav-item .ripple{background:rgba(0,0,0,.10)}
+.nav-item.active .ripple{background:rgba(255,255,255,.35)}
+@keyframes rippleOut{to{transform:translate(-50%,-50%) scale(1);opacity:0}}
+
+/* Fokus papan kekunci kekal jelas walau ada kaca */
+.bnav-item:focus-visible,.nav-item:focus-visible{outline:2px solid var(--blue);outline-offset:-2px}

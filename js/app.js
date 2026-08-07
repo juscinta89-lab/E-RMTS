@@ -77,6 +77,44 @@ const $  = (s,el=document)=>el.querySelector(s);
 const $$ = (s,el=document)=>[...el.querySelectorAll(s)];
 const esc = s => String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
+// ---- Utiliti gerakan ----
+// Riak bermula dari titik sentuhan sebenar, bukan dari tengah
+function rippleAt(el,ev){
+  if(kurangGerak())return;
+  try{
+    const r=el.getBoundingClientRect();
+    const x=(ev&&ev.clientX)?ev.clientX-r.left:r.width/2;
+    const y=(ev&&ev.clientY)?ev.clientY-r.top:r.height/2;
+    const size=Math.max(r.width,r.height)*2.2;
+    const s2=document.createElement('span');
+    s2.className='ripple';
+    s2.style.cssText=`left:${x}px;top:${y}px;width:${size}px;height:${size}px`;
+    el.appendChild(s2);
+    setTimeout(()=>s2.remove(),600);
+  }catch(e){}
+}
+// Getaran sangat halus — pengesahan sentuhan, bukan gangguan
+function tapHaptic(){ try{ if(!kurangGerak()&&navigator.vibrate)navigator.vibrate(8); }catch(e){} }
+
+const kurangGerak=()=>{ try{return window.matchMedia('(prefers-reduced-motion: reduce)').matches;}catch(e){return false;} };
+
+// Nombor "berlari" ke nilai akhir — momen tanda tangan Dashboard.
+function countUp(el,to,dur=900,suffix=''){
+  if(!el)return;
+  if(kurangGerak()||typeof requestAnimationFrame!=='function'){el.textContent=to+suffix;return;}
+  const t0=performance.now();
+  const step=now=>{
+    const p=Math.min(1,(now-t0)/dur);
+    const eased=1-Math.pow(1-p,3);              // nyahpecut kubik
+    el.textContent=Math.round(to*eased)+suffix;
+    if(p<1)requestAnimationFrame(step); else el.textContent=to+suffix;
+  };
+  requestAnimationFrame(step);
+}
+
+// Rangka pemuatan — memberi bentuk kandungan yang akan tiba
+const skeleton=(n=5)=>'<div class="skel">'+'<i></i>'.repeat(n)+'</div>';
+
 function toast(msg,type='info'){
   const w=$('#toasts'); const t=document.createElement('div');
   t.className='toast '+type; t.textContent=msg; w.appendChild(t);
@@ -600,17 +638,20 @@ function buildShell(){
     </div>
     <div class="layout">
       <aside class="sidebar" id="sidebar">
+        <span class="nav-pill" id="navPill" aria-hidden="true"></span>
         ${items}
         <div class="nav-sep"></div>
         <div class="nav-item" id="nav-logout">${IC.logout}<span>Log Keluar</span></div>
       </aside>
       <main class="content" id="view"></main>
     </div>
-    <nav class="bottom-nav" id="bnav">${bitems}</nav>`;
+    <nav class="bottom-nav" id="bnav"><span class="bnav-pill" id="bnavPill" aria-hidden="true"></span>${bitems}</nav>`;
   $('#logoutBtn').onclick=$('#nav-logout').onclick=doLogout;
   $('#darkBtn').onclick=toggleDark;
-  $$('.nav-item[data-nav], .bnav-item[data-nav]').forEach(el=>el.onclick=()=>{
-    location.hash='#'+el.dataset.nav;
+  $$('.nav-item[data-nav], .bnav-item[data-nav]').forEach(el=>{
+    el.setAttribute('tabindex','0');
+    el.onclick=e=>{ rippleAt(el,e); tapHaptic(); location.hash='#'+el.dataset.nav; };
+    el.onkeydown=e=>{ if(e.key==='Enter'||e.key===' '){e.preventDefault();el.click();} };
   });
 }
 
@@ -623,7 +664,57 @@ function onPage(id){
 
 function setActiveNav(id){
   $$('.nav-item[data-nav], .bnav-item[data-nav]').forEach(e=>e.classList.toggle('active',e.dataset.nav===id));
+  moveLiquid(id);
 }
+
+/* --- Navigasi cecair ---------------------------------------------------
+   Pil tidak melompat. Ia meregang sehingga meliputi kedudukan lama DAN baru,
+   kemudian mengecut ke sasaran — memberi rasa cecair yang mengalir. */
+function moveLiquid(id){
+  requestAnimationFrame(()=>{
+    liquidTo($('#bnavPill'), $(`.bnav-item[data-nav="${id}"]`), 'x');
+    liquidTo($('#navPill'),  $(`.nav-item[data-nav="${id}"]`),  'y');
+    const btn=$(`.bnav-item[data-nav="${id}"]`);
+    if(btn&&btn.scrollIntoView) try{btn.scrollIntoView({inline:'center',block:'nearest',
+      behavior:kurangGerak()?'auto':'smooth'});}catch(e){}
+  });
+}
+function liquidTo(pill,target,axis){
+  if(!pill||!target)return;
+  const host=pill.parentElement;
+  const pad=axis==='x'?3:0, padY=axis==='x'?0:2;
+  const to = axis==='x'
+    ? {a:target.offsetLeft-pad, b:target.offsetWidth+pad*2}
+    : {a:target.offsetTop-padY, b:target.offsetHeight+padY*2};
+  const shown=pill.classList.contains('on');
+  const from = shown
+    ? (axis==='x' ? {a:parseFloat(pill.style.left)||0,b:parseFloat(pill.style.width)||0}
+                  : {a:parseFloat(pill.style.top)||0, b:parseFloat(pill.style.height)||0})
+    : to;
+  pill.classList.add('on');
+
+  const apply=(a,b)=>{
+    if(axis==='x'){pill.style.left=a+'px';pill.style.width=b+'px';
+      pill.style.top='';pill.style.height='';}
+    else{pill.style.top=a+'px';pill.style.height=b+'px';}
+  };
+
+  if(!shown||kurangGerak()||from.a===to.a){ apply(to.a,to.b); return; }
+
+  // Fasa 1: regang meliputi kedua-dua kedudukan
+  const start=Math.min(from.a,to.a);
+  const end=Math.max(from.a+from.b,to.a+to.b);
+  apply(start,end-start);
+  // Fasa 2: mengecut ke sasaran (pemasa berasingan bagi setiap pil)
+  clearTimeout(pill.__liq);
+  pill.__liq=setTimeout(()=>apply(to.a,to.b),170);
+}
+window.addEventListener('resize',()=>{
+  const id=(location.hash||'#dashboard').slice(1)||'dashboard';
+  const p1=$('#bnavPill'),p2=$('#navPill');
+  if(p1)p1.classList.remove('on'); if(p2)p2.classList.remove('on'); // letak semula tanpa animasi
+  moveLiquid(id);
+});
 
 function route(){
   if(typeof stopScan==='function') stopScan(); // matikan kamera bila tukar halaman
@@ -631,7 +722,7 @@ function route(){
   const page=(location.hash||'#dashboard').slice(1);
   setActiveNav(page);
   const v=$('#view'); if(!v)return;
-  v.innerHTML='<div class="center-load"><span class="spinner dark"></span></div>';
+  v.innerHTML=skeleton(5);
   ({dashboard:pageDashboard,kehadiran:pageKehadiran,murid:pageMurid,
     kelas:pageKelas,guru:pageGuru,kalendar:pageKalendar,borang:pageBorang,rumusan:pageRumusan,imbas:pageImbas,tetapan:pageTetapan}[page]||pageDashboard)(v);
 }
@@ -680,13 +771,13 @@ async function pageDashboard(v){
 
     <div class="hero">
       <div class="eyebrow">Kehadiran RMT · ${MONTHS[m]} ${y}</div>
-      <div class="big">${mPct==null?'—':mPct}<small>%</small></div>
+      <div class="big"><span id="hv-pct">${mPct==null?'—':'0'}</span><small>%</small></div>
       <div class="sub">${mTot? mH+' kehadiran daripada '+mTot+' rekod ditanda bulan ini'
         : 'Belum ada rekod ditanda bulan ini. Mula di Kehadiran atau Imbas QR.'}</div>
       <div class="hero-row">
-        <div class="cell"><div class="v">${hadir}</div><div class="k">Hadir hari ini</div></div>
-        <div class="cell"><div class="v">${tidak}</div><div class="k">Tidak hadir</div></div>
-        <div class="cell"><div class="v">${rmtAktif.length}</div><div class="k">Murid RMT</div></div>
+        <div class="cell"><div class="v" id="hv-h">0</div><div class="k">Hadir hari ini</div></div>
+        <div class="cell"><div class="v" id="hv-x">0</div><div class="k">Tidak hadir</div></div>
+        <div class="cell"><div class="v" id="hv-m">0</div><div class="k">Murid RMT</div></div>
       </div>
     </div>
 
@@ -704,6 +795,12 @@ async function pageDashboard(v){
       <p style="color:var(--muted);margin:0 0 14px;font-size:13px">Purata kehadiran murid RMT setiap bulan</p>
       ${monthly}
     </div>`;
+
+  // Nombor berlari naik — hanya di Dashboard, sekali setiap kunjungan
+  if(mPct!=null) countUp($('#hv-pct'),mPct,900);
+  countUp($('#hv-h'),hadir,700);
+  countUp($('#hv-x'),tidak,700);
+  countUp($('#hv-m'),rmtAktif.length,700);
 }
 function stat(cls,ico,val,lbl){
   return `<div class="stat ${cls}"><div class="ico">${ico}</div>
@@ -799,7 +896,7 @@ async function pageKehadiran(v){
 
 async function renderC8(){
   const holder=$('#c8-holder'); if(!holder)return;
-  holder.innerHTML='<div class="center-load"><span class="spinner dark"></span></div>';
+  holder.innerHTML=skeleton(6);
   const {kelasId,year,month}=C8_STATE;
   const [students,classes,school]=await Promise.all([DB.getStudents(),DB.getClasses(),DB.getSchool()]);
   const cls=classes.find(c=>c.id===kelasId);
@@ -936,6 +1033,7 @@ async function cycleCell(td){
   td.classList.remove('present','absent'); td.textContent='';
   if(next==='H'){td.classList.add('present');td.textContent='✓';}
   if(next==='X'){td.classList.add('absent');td.textContent='✕';}
+  td.classList.remove('just-marked'); void td.offsetWidth; td.classList.add('just-marked');
   updateRowTotals(sid); recalcFooter();
   showSaving();
   try{
@@ -987,7 +1085,7 @@ async function pageBorang(v){
 
 async function renderBorang(){
   const holder=$('#b-holder'); if(!holder)return;
-  holder.innerHTML='<div class="center-load"><span class="spinner dark"></span></div>';
+  holder.innerHTML=skeleton(6);
   const {jenis,kelasId,year}=BORANG_STATE;
   const students=await rosterStudents(kelasId,year);
   const coll=jenis==='C1'?'fizikal':'akademik';
@@ -1350,7 +1448,7 @@ function statusTableHTML(rows){
 
 async function renderRumusan(){
   const holder=$('#r-holder'); if(!holder)return;
-  holder.innerHTML='<div class="center-load"><span class="spinner dark"></span></div>';
+  holder.innerHTML=skeleton(6);
   const j=RUM_STATE.jenis; const nota=$('#r-nota');
   if(j==='kelas'){ holder.innerHTML=`<div class="c8-scroll">${rumTableHTML(await computeRumusan())}</div>`;
     if(nota)nota.textContent='% dikira daripada sel yang ditanda dalam C8 (hadir ÷ (hadir + tidak hadir)).'; }
@@ -1557,7 +1655,7 @@ async function pageImbas(v){
 
 function scanStatus(html,type){
   const el=$('#sc-status'); if(!el)return;
-  el.innerHTML=`<div class="sah-banner ${type==='ok'?'open':''}" style="${type==='err'?'background:var(--danger-soft);border-color:var(--danger)':''}">${html}</div>`;
+  el.innerHTML=`<div class="sah-banner ${type==='ok'?'open flash':''}" style="${type==='err'?'background:var(--danger-soft);border-color:var(--danger)':''}">${html}</div>`;
 }
 
 async function startScan(){
