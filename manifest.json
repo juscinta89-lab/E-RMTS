@@ -1,7 +1,7 @@
 {
   "name": "RMT Attendance SK Belukar",
-  "short_name": "RMT SKB",
-  "description": "Sistem Rekod Kehadiran Murid RMT — Borang C8 KPM",
+  "short_name": "e-RMTS ",
+  "description": "Sistem Rekod Kehadiran Murid RMT",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
