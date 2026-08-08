@@ -528,7 +528,7 @@ function renderAuth(mode){
     modeTag='<p style="color:var(--warn);font-size:12px">Mod Demo — data dalam pelayar ini sahaja</p>';
   }
   const brand=`<div class="auth-brand">
-        <div class="auth-logo">RMT</div>
+        <div class="auth-logo"><img src="./assets/logo.png" alt="e-RMT"></div>
         <h1>RMT Attendance SK Belukar</h1>
         <p>Rekod Kehadiran Murid RMT · Borang C8 KPM</p>${modeTag}</div>`;
 
@@ -630,7 +630,7 @@ function buildShell(){
     `<div class="bnav-item" data-nav="${n.id}">${IC[n.icon]}<span>${n.short||n.label}</span></div>`).join('');
   $('#app').innerHTML=`
     <div class="topbar">
-      <div class="brand"><span class="logo">RMT</span><span class="hide-sm">SK Belukar</span></div>
+      <div class="brand"><span class="logo"><img src="./assets/logo.png" alt="e-RMT"></span><span class="hide-sm">SK Belukar</span></div>
       <div class="spacer"></div>
       <button class="icon-btn" id="darkBtn" title="Mod gelap">${IC.moon}</button>
       <div class="user-chip"><span>${esc(CURRENT.nama)}</span><span class="role">· ${esc(CURRENT.role)}</span></div>
@@ -2410,12 +2410,12 @@ async function pageTetapan(v){
       <p style="color:var(--muted);font-size:13px;margin:0 0 12px">
         Pilih warna rasmi sekolah — seluruh aplikasi (topbar, butang, menu) akan mengikut warna ini.</p>
       <div class="swatches" id="s-swatches">
-        ${['#ec3013','#0B7A3B','#1565C0','#8E1B1B','#6A1B9A','#00695C','#283593','#B8860B']
+        ${['#7FB89A','#91BFE3','#8CC9A5','#A8C6A0','#9BB8D4','#B5A8C9','#D9A8A8','#E8C878','#8FBFB5']
           .map(c=>`<button class="swatch" data-c="${c}" style="background:${c}" title="${c}"></button>`).join('')}
         <label class="swatch custom" title="Warna sendiri">🎨
-          <input type="color" id="s-custcolor" value="${esc(s.themeColor||'#ec3013')}" style="opacity:0;position:absolute;inset:0;cursor:pointer"></label>
+          <input type="color" id="s-custcolor" value="${esc(s.themeColor||'#7FB89A')}" style="opacity:0;position:absolute;inset:0;cursor:pointer"></label>
       </div>
-      <p style="font-size:12px;color:var(--muted);margin:10px 0 0">Warna semasa: <b id="s-curcolor">${esc(s.themeColor||'#ec3013 (asal Modernist)')}</b>. Klik warna untuk terap &amp; simpan.</p>
+      <p style="font-size:12px;color:var(--muted);margin:10px 0 0">Warna semasa: <b id="s-curcolor">${esc(s.themeColor||'#7FB89A (Soft Sage — lalai)')}</b>. Klik warna untuk terap &amp; simpan.</p>
     </div>
 
     <div class="card" style="max-width:640px;margin-top:18px">
