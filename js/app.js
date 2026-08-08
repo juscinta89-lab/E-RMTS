@@ -666,15 +666,14 @@ function buildShell(){
   // Susunan telefon: 2 tab · BUTANG IMBAS terangkat di tengah · 1 tab · Lagi
   const tabKiri=['dashboard','kehadiran'], tabKanan=['murid'];
   const cari=id=>navList.find(n=>n.id===id);
-  const tab=n=>n?`<div class="bnav-item" data-nav="${n.id}">${IC[n.icon]}<span>${n.short||n.label}</span></div>`:'';
+  const tab=n=>n?`<div class="bnav-item" data-nav="${n.id}" title="${esc(n.label)}">${IC[n.icon]}<span>${n.short||n.label}</span></div>`:'';
   const adaImbas=!!cari('imbas');
   const dalamBar=new Set([...tabKiri,...tabKanan,'imbas']);
   const extra=navList.filter(n=>!dalamBar.has(n.id));
   let bitems=tabKiri.map(id=>tab(cari(id))).join('');
-  if(adaImbas) bitems+=`<div class="bnav-item fabwrap" data-nav="imbas">
-      <span class="bnav-fab">${IC.qr}</span><span>Imbas</span></div>`;
+  if(adaImbas) bitems+=`<div class="bnav-item" data-nav="imbas" title="Imbas QR">${IC.qr}<span>Imbas</span></div>`;
   bitems+=tabKanan.map(id=>tab(cari(id))).join('');
-  if(extra.length) bitems+=`<div class="bnav-item" id="bnavMore">${IC.gear}<span>Lagi</span></div>`;
+  if(extra.length) bitems+=`<div class="bnav-item" id="bnavMore" title="Menu lain">${IC.gear}<span>Lagi</span></div>`;
   $('#app').innerHTML=`
     <div class="topbar">
       <div style="display:flex;align-items:center;gap:10px;min-width:0">
@@ -834,50 +833,83 @@ async function pageDashboard(v){
     Object.values(r).forEach(k=>{ if(k==='H')mH++; else if(k==='X')mX++; }); }); });
   const mTot=mH+mX, mPct=mTot?Math.round(mH/mTot*100):null;
 
+  const hariNama=['Ahad','Isnin','Selasa','Rabu','Khamis','Jumaat','Sabtu'][today.getDay()];
+
+  // Kelas terkini + status pengesahan (penegasan maklumat penting)
+  const senaraiKelas=sortCls(classes).slice(0,4);
+  const kelasBaris=[];
+  for(const c of senaraiKelas){
+    const doc=await DB.getAttDoc(c.id,y,m);
+    let h=0,x=0;
+    Object.values(doc.records||{}).forEach(r=>Object.values(r).forEach(k=>{if(k==='H')h++;else if(k==='X')x++;}));
+    const tot=h+x, pct=tot?Math.round(h/tot*100):null;
+    const bil=rmtAktif.filter(st=>st.kelasId===c.id).length;
+    kelasBaris.push(`<div class="rcard ${doc.sah?'ok':(tot?'warn':'')}" data-kelas="${c.id}">
+      <div class="rtitle">${esc(clsLabel(c))}</div>
+      <div class="rtags">
+        <span class="rbadge ${doc.sah?'ok':(tot?'warn':'off')}">${doc.sah?'Disahkan':(tot?'Belum disahkan':'Tiada rekod')}</span>
+        <span class="rmeta">${pct==null?'—':pct+'% kehadiran'}</span>
+      </div>
+      <div class="rmeta">${bil} murid RMT${tot?` · ${h} hadir, ${x} tidak hadir`:''}</div>
+    </div>`);
+  }
+
   v.innerHTML=`
     <div class="page-head">
       <div class="htxt"><h2>Dashboard</h2>
-        <div class="sub">${esc(schoolNames().pendek)} · ${MONTHS[m]} ${y}</div></div>
+        <div class="sub">${hariNama}, ${d} ${MONTHS[m]} ${y}</div></div>
       <div class="spacer"></div>
-      <span class="badge b">${esc(school.kod||school.nama||'')}</span></div>
+      <button class="fab-add" id="go-imbas" title="Imbas QR kehadiran">${IC.qr}</button>
+    </div>
 
-    <div class="hero">
-      <div class="eyebrow">Kehadiran bulan ini</div>
-      <div class="bigwrap">
-        <div class="big"><span id="hv-pct">${mPct==null?'—':'0'}</span><small>%</small></div>
-        <div class="sub">${mTot? mH+' / '+mTot+' rekod ditanda bulan ini'
-          : 'Belum ada rekod ditanda. Mula di Kehadiran atau Imbas QR.'}</div>
+    <h3 class="sect">Tindakan Pantas</h3>
+    <div class="qa-grid">
+      <button class="qa" data-goto="kehadiran">${IC.check}<span>Tanda Kehadiran</span></button>
+      <button class="qa" data-goto="imbas">${IC.qr}<span>Imbas QR</span></button>
+      <button class="qa" data-goto="rumusan">${IC.chart}<span>Rumusan</span></button>
+    </div>
+
+    <h3 class="sect">Statistik</h3>
+    <div class="sgrid">
+      <div class="scard wide">
+        <div class="sh">${IC.chart}<div><div class="st">Kehadiran Bulan Ini</div>
+          <div class="ss">${MONTHS[m]} ${y}${mTot?` · ${mH}/${mTot} rekod`:''}</div></div></div>
+        <div class="sv"><b id="hv-pct">${mPct==null?'—':'0'}</b><span>%</span></div>
+        <div class="track"><i style="width:${mPct==null?0:mPct}%"></i></div>
       </div>
-      <div class="track"><i style="width:${mPct==null?0:mPct}%"></i></div>
-      <div class="hero-row">
-        <div class="cell"><div class="v" id="hv-h">0</div><div class="k">Hadir hari ini</div></div>
-        <div class="cell"><div class="v" id="hv-x">0</div><div class="k">Tidak hadir</div></div>
-        <div class="cell"><div class="v" id="hv-m">0</div><div class="k">Murid RMT</div></div>
+      <div class="scard">
+        <div class="sh">${IC.check}<div><div class="st">Hadir Hari Ini</div>
+          <div class="ss">${d} ${MONTHS[m]}</div></div></div>
+        <div class="sv"><b id="hv-h">0</b><span>murid</span></div>
+      </div>
+      <div class="scard r">
+        <div class="sh">${IC.check}<div><div class="st">Tidak Hadir</div>
+          <div class="ss">${d} ${MONTHS[m]}</div></div></div>
+        <div class="sv"><b id="hv-x">0</b><span>murid</span></div>
+      </div>
+      <div class="scard">
+        <div class="sh">${IC.student}<div><div class="st">Murid RMT</div>
+          <div class="ss">Status aktif</div></div></div>
+        <div class="sv"><b id="hv-m">0</b><span>murid</span></div>
+      </div>
+      <div class="scard">
+        <div class="sh">${IC.cls}<div><div class="st">Kelas</div>
+          <div class="ss">${teachers.length} guru · ${users.length} pengguna</div></div></div>
+        <div class="sv"><b>${classes.length}</b><span>kelas</span></div>
       </div>
     </div>
 
-    <div class="stat-grid" style="margin-top:16px">
-      ${stat('g',IC.check,hadir,'Hadir hari ini · '+d+' '+MONTHS[m].slice(0,3))}
-      ${stat('r',IC.check,tidak,'Tidak hadir hari ini')}
-      ${stat('b',IC.student,rmtAktif.length,'Murid RMT aktif')}
-      ${stat('o',IC.cls,classes.length,'Jumlah kelas')}
-      ${stat('g',IC.teacher,teachers.length,'Jumlah guru')}
-      ${stat('b',IC.teacher,users.length,'Jumlah pengguna')}
-    </div>
+    <h3 class="sect">Status Kelas</h3>
+    <div class="rlist">${kelasBaris.join('')||emptyRich('Belum ada kelas','Tambah kelas dahulu sebelum merekod kehadiran.','')}</div>
 
-    <div class="card" style="margin-top:16px">
-      <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">
-        <div><h3 style="margin:0 0 2px">Kehadiran bulanan ${y}</h3>
-          <p style="color:var(--muted);margin:0;font-size:12.5px">Purata kehadiran murid RMT setiap bulan</p></div>
-        <div class="spacer" style="flex:1"></div>
-        <span style="color:var(--muted);font-size:12px">Data direkod: ${MONTHS[m]}</span>
-      </div>
-      <div style="margin-top:14px">${monthly}</div>
-    </div>
+    <h3 class="sect">Kehadiran Bulanan ${y}</h3>
+    <div class="card">${monthly}</div>`;
 
-    <button class="btn btn-primary cta-main" id="cta-tanda">Tanda kehadiran hari ini</button>`;
+  $('#go-imbas').onclick=()=>{location.hash='#imbas';};
+  $$('.qa[data-goto]').forEach(b=>b.onclick=()=>{location.hash='#'+b.dataset.goto;});
+  $$('.rcard[data-kelas]').forEach(el=>el.onclick=()=>{
+    C8_STATE.kelasId=el.dataset.kelas; location.hash='#kehadiran';});
 
-  const cta=$('#cta-tanda'); if(cta)cta.onclick=()=>{location.hash='#kehadiran';};
 
   // Nombor berlari naik — hanya di Dashboard, sekali setiap kunjungan
   if(mPct!=null) countUp($('#hv-pct'),mPct,900);
