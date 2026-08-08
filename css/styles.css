@@ -962,3 +962,39 @@ h3.sect:first-of-type{margin-top:18px}
   .bnav-item.active{color:var(--green-dark)}
   .bnav-pill{border-radius:999px;background:var(--green-soft)}
 }
+
+/* =========================================================
+   v6 — Jalur status kelas boleh skrol + nav aktif gelap
+   ========================================================= */
+
+/* Nota kecil pada tajuk seksyen */
+h3.sect .sect-note{font-size:11.5px;font-weight:600;color:var(--muted);
+  letter-spacing:0;margin-left:8px;text-transform:none}
+
+/* Jalur mendatar: semua kelas boleh dileret kiri↔kanan */
+.rstrip{display:flex;gap:12px;overflow-x:auto;overflow-y:hidden;
+  scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;
+  padding:2px 16px 10px;margin:0 -16px}
+.rstrip::-webkit-scrollbar{height:6px}
+.rstrip::-webkit-scrollbar-thumb{background:var(--line);border-radius:99px}
+.rstrip::-webkit-scrollbar-track{background:transparent}
+.rstrip .rcard{flex:0 0 74%;max-width:290px;scroll-snap-align:start}
+@media(min-width:861px){
+  .rstrip{padding-left:0;padding-right:0;margin:0}
+  .rstrip .rcard{flex:0 0 262px}
+}
+
+/* ---- Nav bawah: bayang lebih jelas + aktif GELAP dengan ikon cerah ---- */
+@media(max-width:860px){
+  .bottom-nav{
+    box-shadow:0 14px 34px rgba(38,51,45,.22), 0 4px 10px rgba(38,51,45,.10);
+    border-color:rgba(38,51,45,.06)}
+  .bnav-pill{background:var(--green-dark);box-shadow:0 4px 12px rgba(78,143,107,.45)}
+  .bnav-item.active{color:#fff}          /* ikon cerah atas pil gelap */
+  .bnav-item.active svg{stroke-width:2.2}
+}
+
+/* ---- Sidebar desktop: penanda aktif gelap yang sama ---- */
+.nav-pill{background:var(--green-dark)}
+.nav-item.active{color:#fff}
+.nav-item.active svg{stroke-width:2.2}

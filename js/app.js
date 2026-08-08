@@ -836,10 +836,12 @@ async function pageDashboard(v){
   const hariNama=['Ahad','Isnin','Selasa','Rabu','Khamis','Jumaat','Sabtu'][today.getDay()];
 
   // Kelas terkini + status pengesahan (penegasan maklumat penting)
-  const senaraiKelas=sortCls(classes).slice(0,4);
+  // SEMUA kelas — dibaca serentak, dipapar sebagai jalur boleh skrol
+  const senaraiKelas=sortCls(classes);
+  const docs=await Promise.all(senaraiKelas.map(c=>DB.getAttDoc(c.id,y,m)));
   const kelasBaris=[];
-  for(const c of senaraiKelas){
-    const doc=await DB.getAttDoc(c.id,y,m);
+  senaraiKelas.forEach((c,ci)=>{
+    const doc=docs[ci];
     let h=0,x=0;
     Object.values(doc.records||{}).forEach(r=>Object.values(r).forEach(k=>{if(k==='H')h++;else if(k==='X')x++;}));
     const tot=h+x, pct=tot?Math.round(h/tot*100):null;
@@ -852,7 +854,7 @@ async function pageDashboard(v){
       </div>
       <div class="rmeta">${bil} murid RMT${tot?` · ${h} hadir, ${x} tidak hadir`:''}</div>
     </div>`);
-  }
+  });
 
   v.innerHTML=`
     <div class="page-head">
@@ -899,8 +901,10 @@ async function pageDashboard(v){
       </div>
     </div>
 
-    <h3 class="sect">Status Kelas</h3>
-    <div class="rlist">${kelasBaris.join('')||emptyRich('Belum ada kelas','Tambah kelas dahulu sebelum merekod kehadiran.','')}</div>
+    <h3 class="sect">Status Kelas <span class="sect-note">${senaraiKelas.length} kelas · leret ke tepi</span></h3>
+    ${kelasBaris.length
+      ? `<div class="rstrip">${kelasBaris.join('')}</div>`
+      : emptyRich('Belum ada kelas','Tambah kelas dahulu sebelum merekod kehadiran.','')}
 
     <h3 class="sect">Kehadiran Bulanan ${y}</h3>
     <div class="card">${monthly}</div>`;
