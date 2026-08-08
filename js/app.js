@@ -663,9 +663,17 @@ function buildShell(){
   const navList=NAV.filter(n=>n.all||(n.admin&&isAdmin()));
   const items=navList.map(n=>
     `<div class="nav-item" data-nav="${n.id}">${IC[n.icon]}<span>${n.label}</span></div>`).join('');
-  const prim=navList.filter(n=>n.p), extra=navList.filter(n=>!n.p);
-  let bitems=prim.map(n=>
-    `<div class="bnav-item" data-nav="${n.id}">${IC[n.icon]}<span>${n.short||n.label}</span></div>`).join('');
+  // Susunan telefon: 2 tab · BUTANG IMBAS terangkat di tengah · 1 tab · Lagi
+  const tabKiri=['dashboard','kehadiran'], tabKanan=['murid'];
+  const cari=id=>navList.find(n=>n.id===id);
+  const tab=n=>n?`<div class="bnav-item" data-nav="${n.id}">${IC[n.icon]}<span>${n.short||n.label}</span></div>`:'';
+  const adaImbas=!!cari('imbas');
+  const dalamBar=new Set([...tabKiri,...tabKanan,'imbas']);
+  const extra=navList.filter(n=>!dalamBar.has(n.id));
+  let bitems=tabKiri.map(id=>tab(cari(id))).join('');
+  if(adaImbas) bitems+=`<div class="bnav-item fabwrap" data-nav="imbas">
+      <span class="bnav-fab">${IC.qr}</span><span>Imbas</span></div>`;
+  bitems+=tabKanan.map(id=>tab(cari(id))).join('');
   if(extra.length) bitems+=`<div class="bnav-item" id="bnavMore">${IC.gear}<span>Lagi</span></div>`;
   $('#app').innerHTML=`
     <div class="topbar">
@@ -739,7 +747,9 @@ function moveLiquid(id){
   });
 }
 function liquidTo(pill,target,axis){
-  if(!pill||!target)return;
+  if(!pill)return;
+  // Butang bulat terangkat tidak menggunakan pil
+  if(!target||target.classList.contains('fabwrap')){pill.classList.remove('on');return;}
   const host=pill.parentElement;
   const pad=axis==='x'?3:0, padY=axis==='x'?0:2;
   const to = axis==='x'

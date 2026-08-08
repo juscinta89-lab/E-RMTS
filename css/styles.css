@@ -853,3 +853,44 @@ table.c8 tbody td.name{font-weight:600}
   .hero .big{font-size:52px}
   .hero{padding:20px}
 }
+
+/* =========================================================
+   NAV BAWAH v4 — 4 tab + butang IMBAS bulat terangkat
+   Tiada skrol mendatar, jadi bar sentiasa nampak lengkap.
+   ========================================================= */
+@media(max-width:860px){
+  .content{padding-bottom:96px}
+  .bottom-nav{
+    display:flex;align-items:flex-end;justify-content:space-around;
+    overflow:visible;                 /* penting: butang bulat tak dipotong */
+    background:var(--card);
+    border-top:1px solid var(--line);
+    box-shadow:0 -6px 20px rgba(38,51,45,.06);
+    padding:10px 6px calc(10px + env(safe-area-inset-bottom));
+    border-radius:0}
+  .bottom-nav::-webkit-scrollbar{display:none}
+
+  .bnav-item{flex:1;min-width:0;padding:4px 2px;gap:5px;
+    font-size:10.5px;font-weight:600;color:var(--muted)}
+  .bnav-item svg{width:22px;height:22px}
+  .bnav-item.active{color:var(--green-dark);font-weight:700}
+
+  /* Butang bulat terangkat — tindakan harian utama */
+  .bnav-item.fabwrap{position:relative;gap:7px;overflow:visible}
+  .bnav-fab{
+    width:56px;height:56px;border-radius:50%;
+    background:var(--green);color:#fff;
+    display:grid;place-items:center;
+    margin-top:-34px;                 /* naik separuh keluar dari bar */
+    box-shadow:0 0 0 6px var(--card), 0 10px 22px rgba(79,143,107,.38);
+    transition:transform .2s var(--ease-spring),box-shadow .2s}
+  .bnav-fab svg{width:26px;height:26px;stroke-width:2.1}
+  .bnav-item.fabwrap:active .bnav-fab{transform:scale(.92)}
+  .bnav-item.fabwrap.active .bnav-fab{
+    transform:scale(1.06);
+    box-shadow:0 0 0 6px var(--card), 0 12px 26px rgba(79,143,107,.5)}
+  .bnav-item.fabwrap.active{color:var(--green-dark)}
+
+  /* Pil cecair kekal untuk tab biasa sahaja */
+  .bnav-pill{border-radius:14px}
+}
