@@ -1,5 +1,5 @@
 /* =========================================================
-   RMT Attendance SK Belukar — app.js
+   RMT Attendance — app.js (berbilang sekolah)
    Mod Firebase (bila config diisi) ATAU Mod Demo (localStorage)
    ========================================================= */
 'use strict';
@@ -11,6 +11,42 @@
 const TENANT = window.__SCHOOL_ID__ || 'default';
 const SESS_KEY = 'rmt_current_' + TENANT;
 const THEME_KEY = 'rmt_themecolor_' + TENANT;
+const NAME_KEY  = 'rmt_schoolname_' + TENANT;
+
+/* Nama sekolah untuk skrin login, topbar, tajuk & nama app PWA.
+   Keutamaan: (1) fail config sekolah  (2) nama yang di-cache selepas log masuk
+   sebelum ini  (3) lalai generik. Skrin login belum boleh baca Firestore
+   (pengguna belum sah), sebab itu nama diambil dari config/cache. */
+function schoolNames(){
+  let cached={};
+  try{ cached=JSON.parse(localStorage.getItem(NAME_KEY)||'{}'); }catch(e){}
+  const penuh = window.__SCHOOL_NAME__  || cached.penuh || '';
+  const pendek= window.__SCHOOL_SHORT__ || cached.pendek || '';
+  return {penuh, pendek: pendek || penuh || 'e-RMT'};
+}
+function simpanNamaSekolah(nama){
+  if(!nama)return;
+  const pendek=nama.replace(/^SEKOLAH KEBANGSAAN\s+/i,'SK ').trim();
+  try{ localStorage.setItem(NAME_KEY,JSON.stringify({penuh:nama,pendek})); }catch(e){}
+}
+// Tajuk tab + nama app semasa install PWA mengikut sekolah
+function terapkanIdentiti(){
+  const n=schoolNames();
+  const tajuk = n.penuh ? ('e-RMT · '+n.pendek) : 'e-RMT';
+  document.title = tajuk;
+  const am=document.querySelector('meta[name="apple-mobile-web-app-title"]');
+  if(am) am.setAttribute('content', n.pendek);
+  try{
+    const link=document.querySelector('link[rel="manifest"]');
+    if(!link)return;
+    fetch(link.getAttribute('href')).then(r=>r.json()).then(m=>{
+      m.name = n.penuh ? ('e-RMT · '+n.penuh) : m.name;
+      m.short_name = n.pendek.slice(0,12);
+      const url=URL.createObjectURL(new Blob([JSON.stringify(m)],{type:'application/manifest+json'}));
+      link.setAttribute('href',url);
+    }).catch(()=>{});
+  }catch(e){}
+}
 
 /* ---------------------------------------------------------
    0. Ikon (SVG inline, Material-style)
@@ -67,7 +103,7 @@ function applyTheme(hex){
   try{localStorage.setItem(THEME_KEY,hex);}catch(e){}
 }
 // terap serta-merta dari cache (elak kelipan warna lama)
-(function(){try{const t=localStorage.getItem(THEME_KEY);if(t)applyTheme(t);}catch(e){}})();
+(function(){try{const t=localStorage.getItem(THEME_KEY);applyTheme(t||'#7FB89A');}catch(e){}})();
 
 function yearRange(){ const y=new Date().getFullYear(); const out=[];
   for(let i=2025;i<=y+1;i++) out.push(i); return out; }
@@ -401,7 +437,8 @@ async function loadConfig(){
     const s=await DB.getSchool();
     APP_CFG.restDays = Array.isArray(s.restDays)&&s.restDays.length? s.restDays : [0,6];
     APP_CFG.sesi = s.sesi || new Date().getFullYear();
-    if(s.themeColor) applyTheme(s.themeColor);
+    if(s.nama){ simpanNamaSekolah(s.nama); terapkanIdentiti(); }
+    applyTheme(s.themeColor||'#7FB89A');
     APP_CFG.holidays = await DB.listHolidays();
   }catch(e){ /* biar lalai */ }
 }
@@ -528,9 +565,9 @@ function renderAuth(mode){
     modeTag='<p style="color:var(--warn);font-size:12px">Mod Demo — data dalam pelayar ini sahaja</p>';
   }
   const brand=`<div class="auth-brand">
-        <div class="auth-logo"><img src="./assets/logo.png" alt="e-RMT"></div>
-        <h1>RMT Attendance SK Belukar</h1>
-        <p>Rekod Kehadiran Murid RMT · Borang C8 KPM</p>${modeTag}</div>`;
+        <img class="auth-logo" src="./assets/logo.png" alt="e-RMT">
+        <h1>${esc(schoolNames().pendek)}</h1>
+        <p>E-Rekod RMT System</p>${modeTag}</div>`;
 
   /* ----- DAFTAR ----- */
   if(mode==='register'){
@@ -601,12 +638,12 @@ function renderAuth(mode){
    5. Rangka aplikasi + navigasi
 --------------------------------------------------------- */
 const NAV=[
-  {id:'dashboard',label:'Dashboard',short:'Utama',icon:'dash',all:true},
-  {id:'kehadiran',label:'Kehadiran (C8)',short:'Kehadiran',icon:'check',all:true},
-  {id:'imbas',label:'Imbas QR Kehadiran',short:'Imbas',icon:'qr',all:true},
-  {id:'murid',label:'Maklumat Murid',short:'Murid',icon:'student',all:true},
-  {id:'borang',label:'Borang C1/C2',short:'Borang',icon:'file',all:true},
-  {id:'rumusan',label:'Rumusan Kehadiran',short:'Rumusan',icon:'chart',all:true},
+  {id:'dashboard',label:'Dashboard',short:'Utama',icon:'dash',all:true,p:1},
+  {id:'kehadiran',label:'Kehadiran',short:'Kehadiran',icon:'check',all:true,p:1},
+  {id:'imbas',label:'Imbas QR',short:'Imbas',icon:'qr',all:true,p:1},
+  {id:'murid',label:'Maklumat Murid',short:'Murid',icon:'student',all:true,p:1},
+  {id:'borang',label:'Borang C1/C2',short:'Borang',icon:'file',all:true,p:1},
+  {id:'rumusan',label:'Rumusan Kehadiran',short:'Rumusan',icon:'chart',all:true,p:1},
   {id:'kelas',label:'Maklumat Kelas',short:'Kelas',icon:'cls',admin:true},
   {id:'guru',label:'Guru & Pengguna',short:'Guru',icon:'teacher',admin:true},
   {id:'kalendar',label:'Hari & Cuti',short:'Cuti',icon:'cal',admin:true},
@@ -626,11 +663,16 @@ function buildShell(){
   const navList=NAV.filter(n=>n.all||(n.admin&&isAdmin()));
   const items=navList.map(n=>
     `<div class="nav-item" data-nav="${n.id}">${IC[n.icon]}<span>${n.label}</span></div>`).join('');
-  const bitems=navList.map(n=>
+  const prim=navList.filter(n=>n.p), extra=navList.filter(n=>!n.p);
+  let bitems=prim.map(n=>
     `<div class="bnav-item" data-nav="${n.id}">${IC[n.icon]}<span>${n.short||n.label}</span></div>`).join('');
+  if(extra.length) bitems+=`<div class="bnav-item" id="bnavMore">${IC.gear}<span>Lagi</span></div>`;
   $('#app').innerHTML=`
     <div class="topbar">
-      <div class="brand"><span class="logo"><img src="./assets/logo.png" alt="e-RMT"></span><span class="hide-sm">SK Belukar</span></div>
+      <div style="display:flex;align-items:center;gap:10px;min-width:0">
+        <img class="logo" src="./assets/logo.png" alt="" style="width:34px;height:34px;border-radius:9px;flex:none">
+        <div class="brand"><span>e-RMT</span><span class="bsub hide-sm">${esc(schoolNames().pendek)}</span></div>
+      </div>
       <div class="spacer"></div>
       <button class="icon-btn" id="darkBtn" title="Mod gelap">${IC.moon}</button>
       <div class="user-chip"><span>${esc(CURRENT.nama)}</span><span class="role">· ${esc(CURRENT.role)}</span></div>
@@ -648,6 +690,20 @@ function buildShell(){
     <nav class="bottom-nav" id="bnav"><span class="bnav-pill" id="bnavPill" aria-hidden="true"></span>${bitems}</nav>`;
   $('#logoutBtn').onclick=$('#nav-logout').onclick=doLogout;
   $('#darkBtn').onclick=toggleDark;
+  const moreBtn=$('#bnavMore');
+  if(moreBtn) moreBtn.onclick=e=>{
+    rippleAt(moreBtn,e); tapHaptic();
+    openModal(`
+      <div class="modal-head"><h3>Menu Lain</h3><div style="flex:1"></div>
+        <button class="icon-btn" onclick="closeModal()">${IC.x}</button></div>
+      <div class="modal-body" style="padding:10px 12px 16px">
+        ${extra.map(n=>`<div class="nav-item" data-more="${n.id}" style="margin-bottom:4px">${IC[n.icon]}<span>${n.label}</span></div>`).join('')}
+        <div class="nav-sep"></div>
+        <div class="nav-item" id="more-logout">${IC.logout}<span>Log Keluar</span></div>
+      </div>`);
+    $$('[data-more]').forEach(x=>x.onclick=()=>{closeModal();location.hash='#'+x.dataset.more;});
+    $('#more-logout').onclick=()=>{closeModal();doLogout();};
+  };
   $$('.nav-item[data-nav], .bnav-item[data-nav]').forEach(el=>{
     el.setAttribute('tabindex','0');
     el.onclick=e=>{ rippleAt(el,e); tapHaptic(); location.hash='#'+el.dataset.nav; };
@@ -672,6 +728,9 @@ function setActiveNav(id){
    kemudian mengecut ke sasaran — memberi rasa cecair yang mengalir. */
 function moveLiquid(id){
   requestAnimationFrame(()=>{
+    const bp=$('#bnavPill');
+    if(bp&&!kurangGerak()){ bp.classList.remove('pop'); void bp.offsetWidth;
+      setTimeout(()=>bp.classList.add('pop'),190); }
     liquidTo($('#bnavPill'), $(`.bnav-item[data-nav="${id}"]`), 'x');
     liquidTo($('#navPill'),  $(`.nav-item[data-nav="${id}"]`),  'y');
     const btn=$(`.bnav-item[data-nav="${id}"]`);
@@ -766,14 +825,20 @@ async function pageDashboard(v){
   const mTot=mH+mX, mPct=mTot?Math.round(mH/mTot*100):null;
 
   v.innerHTML=`
-    <div class="page-head"><h2>Dashboard</h2><div class="spacer"></div>
-      <span class="badge b">${esc(school.nama)}</span></div>
+    <div class="page-head">
+      <div class="htxt"><h2>Dashboard</h2>
+        <div class="sub">${esc(schoolNames().pendek)} · ${MONTHS[m]} ${y}</div></div>
+      <div class="spacer"></div>
+      <span class="badge b">${esc(school.kod||school.nama||'')}</span></div>
 
     <div class="hero">
-      <div class="eyebrow">Kehadiran RMT · ${MONTHS[m]} ${y}</div>
-      <div class="big"><span id="hv-pct">${mPct==null?'—':'0'}</span><small>%</small></div>
-      <div class="sub">${mTot? mH+' kehadiran daripada '+mTot+' rekod ditanda bulan ini'
-        : 'Belum ada rekod ditanda bulan ini. Mula di Kehadiran atau Imbas QR.'}</div>
+      <div class="eyebrow">Kehadiran bulan ini</div>
+      <div class="bigwrap">
+        <div class="big"><span id="hv-pct">${mPct==null?'—':'0'}</span><small>%</small></div>
+        <div class="sub">${mTot? mH+' / '+mTot+' rekod ditanda bulan ini'
+          : 'Belum ada rekod ditanda. Mula di Kehadiran atau Imbas QR.'}</div>
+      </div>
+      <div class="track"><i style="width:${mPct==null?0:mPct}%"></i></div>
       <div class="hero-row">
         <div class="cell"><div class="v" id="hv-h">0</div><div class="k">Hadir hari ini</div></div>
         <div class="cell"><div class="v" id="hv-x">0</div><div class="k">Tidak hadir</div></div>
@@ -781,20 +846,28 @@ async function pageDashboard(v){
       </div>
     </div>
 
-    <div class="stat-grid">
-      ${stat('g',IC.student,rmtAktif.length,'Murid RMT aktif')}
-      ${stat('b',IC.cls,classes.length,'Jumlah kelas')}
-      ${stat('g',IC.check,hadir,'Hadir hari ini · '+d+' '+MONTHS[m])}
+    <div class="stat-grid" style="margin-top:16px">
+      ${stat('g',IC.check,hadir,'Hadir hari ini · '+d+' '+MONTHS[m].slice(0,3))}
       ${stat('r',IC.check,tidak,'Tidak hadir hari ini')}
-      ${stat('b',IC.teacher,teachers.length,'Jumlah guru')}
-      ${stat('o',IC.teacher,users.length,'Jumlah pengguna')}
+      ${stat('b',IC.student,rmtAktif.length,'Murid RMT aktif')}
+      ${stat('o',IC.cls,classes.length,'Jumlah kelas')}
+      ${stat('g',IC.teacher,teachers.length,'Jumlah guru')}
+      ${stat('b',IC.teacher,users.length,'Jumlah pengguna')}
     </div>
 
-    <div class="card">
-      <h3 style="margin:0 0 4px">Kehadiran bulanan ${y}</h3>
-      <p style="color:var(--muted);margin:0 0 14px;font-size:13px">Purata kehadiran murid RMT setiap bulan</p>
-      ${monthly}
-    </div>`;
+    <div class="card" style="margin-top:16px">
+      <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">
+        <div><h3 style="margin:0 0 2px">Kehadiran bulanan ${y}</h3>
+          <p style="color:var(--muted);margin:0;font-size:12.5px">Purata kehadiran murid RMT setiap bulan</p></div>
+        <div class="spacer" style="flex:1"></div>
+        <span style="color:var(--muted);font-size:12px">Data direkod: ${MONTHS[m]}</span>
+      </div>
+      <div style="margin-top:14px">${monthly}</div>
+    </div>
+
+    <button class="btn btn-primary cta-main" id="cta-tanda">Tanda kehadiran hari ini</button>`;
+
+  const cta=$('#cta-tanda'); if(cta)cta.onclick=()=>{location.hash='#kehadiran';};
 
   // Nombor berlari naik — hanya di Dashboard, sekali setiap kunjungan
   if(mPct!=null) countUp($('#hv-pct'),mPct,900);
@@ -850,8 +923,7 @@ function schoolDays(y,m){ // senarai hari persekolahan (bukan cuti mingguan/kele
 /* ---------------------------------------------------------
    8. HALAMAN: Kehadiran (Borang C8)
 --------------------------------------------------------- */
-const C8_STATE={kelasId:null,year:new Date().getFullYear(),month:new Date().getMonth(),tab:'hari'};
-let DAILY_STATE=null;
+const C8_STATE={kelasId:null,year:new Date().getFullYear(),month:new Date().getMonth()};
 
 async function pageKehadiran(v){
   const classes=await DB.getClasses();
@@ -869,173 +941,34 @@ async function pageKehadiran(v){
   if(!onPage('kehadiran'))return; // halaman lain sudah dibuka — jangan tindih
 
   v.innerHTML=`
-    <div class="page-head"><h2>Rekod Kehadiran Murid RMT</h2><div class="spacer"></div>
-      ${isAdmin()?`<button class="btn" id="printC8All">${IC.print} Cetak Semua Kelas</button>`:''}
-      <button class="btn btn-blue" id="printC8">${IC.print} Cetak / PDF</button></div>
-    <div class="c8-tabs no-print">
-      <div class="c8-tab" data-tab="hari">Hari ini</div>
-      <div class="c8-tab" data-tab="grid">Grid C8</div>
+    <div class="page-head">
+      <div class="htxt"><h2>Kehadiran</h2>
+        <div class="sub" id="c8-sub"></div></div>
+      <div class="spacer"></div>
+      <span class="savepill" id="c8-save"></span>
+      ${isAdmin()?`<button class="btn" id="printC8All">${IC.print} Semua Kelas</button>`:''}
+      <button class="btn btn-blue" id="printC8">${IC.print} Cetak</button></div>
+    <div class="c8-toolbar no-print">
+      <div class="field"><label>Kelas</label><select id="c8-kelas">${clsOpts}</select></div>
+      <div class="field"><label>Bulan</label><select id="c8-bulan">${moOpts}</select></div>
+      <div class="field"><label>Tahun</label><select id="c8-tahun">${yOpts}</select></div>
     </div>
-    <div class="c8-pane c8-daily-pane" id="c8-daily"></div>
-    <div class="c8-pane c8-grid-pane" id="c8-gridpane">
-      <div class="c8-toolbar no-print">
-        <div class="field"><label>Kelas</label><select id="c8-kelas">${clsOpts}</select></div>
-        <div class="field"><label>Bulan</label><select id="c8-bulan">${moOpts}</select></div>
-        <div class="field"><label>Tahun</label><select id="c8-tahun">${yOpts}</select></div>
-        <span class="c8-save-tag" id="c8-save"></span>
-      </div>
-      <div id="c8-holder"></div>
-      <div class="c8-legend no-print">
-        <span><i style="background:var(--bg)"></i> Hadir (H/✓)</span>
-        <span><i style="background:var(--bg);color:var(--green)">✕</i> Tidak hadir (X)</span>
-        <span><i style="background:var(--weekend)"></i> Cuti mingguan (ikut Kumpulan A/B)</span>
-        <span><i style="background:var(--holiday)"></i> Cuti umum</span>
-        <span>Klik sel untuk kitar: kosong → ✓ → ✕ → kosong (auto simpan)</span>
-      </div>
-    </div>`;
+    <div id="c8-holder"></div>
+    <div class="chips no-print" style="margin-top:14px">
+      <span class="chip"><i></i> Hadir</span>
+      <span class="chip r"><i></i> Tidak hadir</span>
+      <span class="chip a"><i></i> Cuti mingguan</span>
+      <span class="chip b"><i></i> Cuti umum</span>
+    </div>
+    <p class="no-print" style="color:var(--muted);font-size:12.5px;margin-top:10px">
+      Ketik sel untuk kitar kosong → ✓ → ✕. Auto simpan.</p>`;
 
-  $('#c8-kelas').onchange=e=>{C8_STATE.kelasId=e.target.value;renderC8();renderDaily();};
+  $('#c8-kelas').onchange=e=>{C8_STATE.kelasId=e.target.value;renderC8();};
   $('#c8-bulan').onchange=e=>{C8_STATE.month=+e.target.value;renderC8();};
   $('#c8-tahun').onchange=e=>{C8_STATE.year=+e.target.value;renderC8();};
   $('#printC8').onclick=printC8;
   if($('#printC8All'))$('#printC8All').onclick=printC8All;
-
-  $$('.c8-tab').forEach(t=>t.onclick=()=>{ C8_STATE.tab=t.dataset.tab; syncKehadiranTab(); });
-  syncKehadiranTab();
-
   renderC8();
-  renderDaily();
-}
-
-function syncKehadiranTab(){
-  $$('.c8-tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===C8_STATE.tab));
-  const daily=$('#c8-daily'), grid=$('#c8-gridpane');
-  if(daily) daily.classList.toggle('active',C8_STATE.tab==='hari');
-  if(grid) grid.classList.toggle('active',C8_STATE.tab!=='hari');
-}
-
-/* ---- "Hari ini": senarai leret (arah 1a) ---- */
-async function renderDaily(){
-  const host=$('#c8-daily'); if(!host)return;
-  const kelasId=C8_STATE.kelasId;
-  host.innerHTML=skeleton(3);
-  const classes=await DB.getClasses();
-  const cls=classes.find(c=>c.id===kelasId);
-  const now=new Date(); const ty=now.getFullYear(), tm=now.getMonth(), td=now.getDate();
-
-  if(!onPage('kehadiran')||C8_STATE.kelasId!==kelasId) return; // kelas/halaman ditukar semasa memuat
-
-  const headHtml=`<div class="daily-head">
-      <div class="daily-head-top"><div class="daily-head-day">${DAYNAMES[now.getDay()]} · ${td} ${MONTHS[tm]} ${ty}</div><div class="daily-head-form">Borang C8</div></div>
-      <div class="daily-head-bottom"><div class="daily-head-kelas">${esc(clsLabel(cls))}</div></div>
-    </div>`;
-
-  if(isWeekend(ty,tm,td)||isHoliday(ty,tm,td)){
-    const why=isHoliday(ty,tm,td)?('Cuti umum'+(holidayName(ty,tm,td)?' — '+esc(holidayName(ty,tm,td)):'')):'Cuti mingguan';
-    host.innerHTML=headHtml+`<div class="daily-locked">${why} hari ini — tiada kehadiran untuk ditanda. Lihat tab Grid C8 untuk rekod bulan penuh.</div>`;
-    return;
-  }
-
-  const [sahInfo,roster,rec]=await Promise.all([DB.getSah(kelasId,ty,tm),rosterStudents(kelasId,ty),DB.getAttendance(kelasId,ty,tm)]);
-  if(!onPage('kehadiran')||C8_STATE.kelasId!==kelasId) return;
-
-  if(!roster.length){
-    host.innerHTML=headHtml+`<div class="daily-locked">Tiada murid RMT aktif dalam kelas ini.</div>`;
-    return;
-  }
-  if(sahInfo){
-    host.innerHTML=headHtml+`<div class="daily-locked">🔒 Kehadiran ${MONTHS[tm]} ${ty} telah disahkan oleh ${esc(sahInfo.olehNama)} — tidak boleh diubah lagi. Lihat tab Grid C8.</div>`;
-    return;
-  }
-
-  DAILY_STATE={kelasId,cls,ty,tm,td,roster,rec};
-  paintDaily();
-}
-
-function markLabel(mk){ return mk==='H'?'Hadir':mk==='X'?'Tidak hadir':'Belum ditanda'; }
-
-function paintDaily(){
-  const host=$('#c8-daily'); if(!host||!DAILY_STATE)return;
-  const {cls,ty,tm,td,roster,rec}=DAILY_STATE;
-  const done=roster.filter(s=>rec[s.id]&&rec[s.id][td]).length;
-
-  const rowsHtml=roster.map(s=>{
-    const mk=rec[s.id]&&rec[s.id][td];
-    const sym=mk==='H'?'✓':mk==='X'?'✕':'';
-    const symColor=mk==='H'?'var(--ok)':mk==='X'?'var(--danger)':'var(--ink)';
-    const bar=mk==='H'?'var(--ok)':mk==='X'?'var(--danger)':'var(--line)';
-    return `<div class="daily-row">
-      <div class="daily-row-bg"><span class="daily-bg-l">✓ Hadir</span><span class="daily-bg-r">Tidak hadir ✕</span></div>
-      <div class="daily-row-front" data-sid="${s.id}">
-        <div class="daily-bar" style="background:${bar}"></div>
-        <div class="daily-info">
-          <div class="daily-name">${esc(s.nama)}</div>
-          <div class="daily-meta">Tahun ${s.tahun} · ${s.jantina==='L'?'Lelaki':'Perempuan'} · ${markLabel(mk)}</div>
-        </div>
-        <div class="daily-sym" style="color:${symColor}">${sym}</div>
-      </div>
-    </div>`;
-  }).join('');
-
-  host.innerHTML=`
-    <div class="daily-head">
-      <div class="daily-head-top"><div class="daily-head-day">${DAYNAMES[new Date(ty,tm,td).getDay()]} · ${td} ${MONTHS[tm]} ${ty}</div><div class="daily-head-form">Borang C8</div></div>
-      <div class="daily-head-bottom"><div class="daily-head-kelas">${esc(clsLabel(cls))}</div>
-        <div class="daily-head-count">${done}<small>/${roster.length}</small></div></div>
-    </div>
-    <div class="daily-wrap">${rowsHtml}</div>
-    <div class="daily-hint">Leret kanan untuk hadir, kiri untuk tidak hadir. Auto simpan — tiada butang Simpan.</div>
-    <div class="daily-summary">
-      <div class="daily-summary-lbl">Belum ditanda</div>
-      <div class="daily-summary-val">${roster.length-done}</div>
-      <button class="btn btn-primary" style="width:100%;margin-top:16px" id="daily-submit">Hantar Kehadiran Hari Ini</button>
-    </div>`;
-
-  $$('.daily-row-front').forEach(wireDailyRow);
-  $('#daily-submit').onclick=()=>{
-    const left=roster.length-roster.filter(s=>rec[s.id]&&rec[s.id][td]).length;
-    if(left>0) toast(left+' murid belum ditanda.','err');
-    else toast('Kehadiran hari ini lengkap ✓','ok');
-  };
-}
-
-function wireDailyRow(el){
-  const sid=el.dataset.sid;
-  let startX=0, dragging=false;
-  el.addEventListener('pointerdown',e=>{
-    startX=e.clientX; dragging=true; el.style.transition='none';
-    try{ el.setPointerCapture(e.pointerId); }catch(err){}
-  });
-  el.addEventListener('pointermove',e=>{
-    if(!dragging)return;
-    const dx=Math.max(-150,Math.min(150,e.clientX-startX));
-    el.style.transform=`translateX(${dx}px)`;
-  });
-  const finish=e=>{
-    if(!dragging)return; dragging=false;
-    const dx=e.clientX-startX;
-    el.style.transition='transform .25s cubic-bezier(.16,1,.3,1)';
-    el.style.transform='translateX(0)';
-    if(dx>56) commitDaily(sid,'H');
-    else if(dx<-56) commitDaily(sid,'X');
-  };
-  el.addEventListener('pointerup',finish);
-  el.addEventListener('pointercancel',finish);
-}
-
-async function commitDaily(sid,v){
-  if(!DAILY_STATE)return;
-  const {kelasId,ty,tm,td,rec}=DAILY_STATE;
-  const cur=rec[sid]&&rec[sid][td];
-  const next = cur===v ? null : v;
-  rec[sid]=rec[sid]||{};
-  if(next) rec[sid][td]=next; else delete rec[sid][td];
-  tapHaptic();
-  setTimeout(()=>{ if(DAILY_STATE&&DAILY_STATE.kelasId===kelasId) paintDaily(); },260);
-  try{
-    await DB.saveAttendanceCell(kelasId,ty,tm,sid,td,next);
-    if(C8_STATE.kelasId===kelasId && C8_STATE.year===ty && C8_STATE.month===tm) renderC8();
-  }catch(e){ toast('Gagal simpan: '+e.message,'err'); }
 }
 
 async function renderC8(){
@@ -1053,12 +986,14 @@ async function renderC8(){
   const recPrev=await DB.getAttendance(kelasId,py,pm);
 
   const nDays=daysInMonth(year,month);
+  const kini=new Date(); const hariIni=(kini.getFullYear()===year&&kini.getMonth()===month)?kini.getDate():0;
   const dayCells=[];
   for(let d=1;d<=nDays;d++) dayCells.push({d,we:isWeekend(year,month,d),hol:isHoliday(year,month,d)});
 
   // ---- header ----
-  const dayTh=dayCells.map(c=>`<th class="col-day ${c.we?'we':''} ${c.hol?'hol':''}">${c.d}</th>`).join('');
+  const dayTh=dayCells.map(c=>`<th class="col-day ${c.we?'we':''} ${c.hol?'hol':''} ${c.d===hariIni?'today':''}">${c.d}</th>`).join('');
   const bulanLabel=`${MONTHS[month]} ${year}`;
+  const sub=$('#c8-sub'); if(sub)sub.textContent=`${clsLabel(cls)} · ${bulanLabel}`;
 
   // ---- baris murid ----
   let bodyRows='';
@@ -1067,7 +1002,7 @@ async function renderC8(){
     let hadir=0,absSemasa=0;
     const cells=dayCells.map(c=>{
       const mk=sr[c.d]; if(mk==='H')hadir++; if(mk==='X')absSemasa++;
-      const cls=[c.we?'we':'',c.hol?'hol':'',mk==='H'?'present':'',mk==='X'?'absent':''].join(' ');
+      const cls=[c.we?'we':'',c.hol?'hol':'',mk==='H'?'present':'',mk==='X'?'absent':'',c.d===hariIni?'today':''].join(' ');
       const sym=mk==='H'?'✓':mk==='X'?'✕':'';
       const clickable=(!c.we&&!c.hol);
       return `<td class="day ${cls}" data-sid="${s.id}" data-day="${c.d}" ${clickable?'':'data-lock="1"'}>${sym}</td>`;
@@ -1077,7 +1012,7 @@ async function renderC8(){
     const jumlahSemua=absSemasa+absLepas;
     bodyRows+=`<tr>
       <td class="col-bil">${i+1}</td>
-      <td class="name col-nama">${esc(s.nama)}</td>
+      <td class="name col-nama">${esc(s.nama)}<span class="nsub">${hadir} hari hadir</span></td>
       <td class="col-thn">${s.tahun}</td>
       <td class="col-jan">${s.jantina}</td>
       ${cells}
@@ -1098,13 +1033,14 @@ async function renderC8(){
   let sahZone='';
   if(sahInfo){
     const tkh=new Date(sahInfo.tarikh);
-    sahZone=`<div class="sah-banner no-print">🔒 <b>Telah disahkan</b> oleh ${esc(sahInfo.olehNama)}
-      pada ${tkh.toLocaleDateString('ms-MY')} — kehadiran bulan ini tidak boleh diubah lagi.
-      ${isAdmin()?'<button class="btn btn-sm btn-ghost" id="c8-unsah" style="margin-left:10px">Buka Semula (Admin)</button>':''}</div>`;
+    sahZone=`<div class="callout ok no-print"><span class="ci">✓</span>
+      <span><b>Telah disahkan</b> oleh ${esc(sahInfo.olehNama)} pada ${tkh.toLocaleDateString('ms-MY')} —
+      kehadiran bulan ini tidak boleh diubah lagi.</span>
+      ${isAdmin()?'<button class="btn btn-sm btn-ghost" id="c8-unsah">Buka Semula</button>':''}</div>`;
   }else if(bolehSah){
-    sahZone=`<div class="sah-banner open no-print">Selepas semua kehadiran ${MONTHS[month]} lengkap,
-      guru kelas boleh mengesahkan rekod ini.
-      <button class="btn btn-sm btn-primary" id="c8-sah" style="margin-left:10px">✔ Sahkan Bulan Ini</button></div>`;
+    sahZone=`<div class="callout warn no-print"><span class="ci">!</span>
+      <span>${MONTHS[month]} belum lengkap — sahkan selepas semua hari ditanda.</span>
+      <button class="btn btn-sm btn-primary" id="c8-sah">Sahkan</button></div>`;
   }
   holder.innerHTML=`
     ${sahZone}
@@ -1718,7 +1654,7 @@ async function printBorang(){
 const SCAN={stream:null,raf:0,active:false,count:0,cool:{},students:null,attCache:{},sahCache:{}};
 
 function stopScan(){
-  SCAN.active=false;
+  SCAN.active=false; SCAN.wedge=false; clearTimeout(SCAN.wedgeT);
   if(SCAN.raf)cancelAnimationFrame(SCAN.raf);
   if(SCAN.stream){SCAN.stream.getTracks().forEach(t=>t.stop());SCAN.stream=null;}
   const b=$('#sc-start'); if(b){b.textContent='📷 Mula Imbas';b.classList.remove('btn-danger');}
@@ -1754,7 +1690,12 @@ async function pageImbas(v){
         <span style="align-self:center;color:var(--muted);font-size:13px">Sesi ini: <b id="sc-count">0</b> murid</span>
       </div>
       <div id="sc-status" style="margin-top:12px"></div>
-      <div class="field" style="margin-top:14px"><label>Atau cari nama murid (jika kamera bermasalah / kad tertinggal)</label>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:16px;
+                  padding-top:14px;border-top:1px solid var(--line)">
+        <button class="btn btn-sm" id="sc-wedge">🔌 Mod Pengimbas Luaran</button>
+        <span style="color:var(--muted);font-size:12px" id="sc-wedge-note">Untuk pengimbas USB/Bluetooth (jenis papan kekunci)</span>
+      </div>
+      <div class="field" style="margin-top:12px"><label>Cari nama murid, atau imbas dengan pengimbas luaran</label>
         <input id="sc-manual" placeholder="Taip nama murid… (min. 2 huruf)" autocomplete="off">
         <div id="sc-results"></div></div>
       <div id="sc-list" style="margin-top:8px"></div>
@@ -1774,11 +1715,32 @@ async function pageImbas(v){
 
   SCAN.count=0; SCAN.cool={}; SCAN.students=null; SCAN.attCache={}; SCAN.sahCache={};
   $('#sc-start').onclick=()=>{ SCAN.active?stopScan():startScan(); };
+  // Hantar kandungan kod ke pemproses, kemudian sedia untuk imbasan seterusnya
+  const hantarKod=()=>{
+    const el=$('#sc-manual'); if(!el)return;
+    const v=el.value.trim(); if(!v)return;
+    clearTimeout(SCAN.wedgeT);
+    $('#sc-results').innerHTML=''; el.value='';
+    handleScanText(v);
+    if(SCAN.wedge) setTimeout(()=>{try{el.focus();}catch(e){}},60);
+  };
+  // Pengimbas USB "menaip" laju dan biasanya menghantar Enter di hujung
+  $('#sc-manual').addEventListener('keydown',e=>{
+    if(e.key==='Enter'){ e.preventDefault(); hantarKod(); }
+  });
+
   $('#sc-manual').oninput=async e=>{
     const q=e.target.value.trim().toLowerCase();
     const box=$('#sc-results'); if(!box)return;
     if(q.length<2){box.innerHTML='';return;}
-    if(q.startsWith('rmt:')){box.innerHTML='';handleScanText(e.target.value.trim());e.target.value='';return;}
+    // Kod QR: tunggu taipan pengimbas selesai (jeda 140ms) sebelum diproses,
+    // supaya "RMT:" tidak dihantar sebelum ID lengkap ditaip.
+    if(q.startsWith('rmt:')){
+      box.innerHTML='';
+      clearTimeout(SCAN.wedgeT);
+      if(q.length>4) SCAN.wedgeT=setTimeout(hantarKod,140);
+      return;
+    }
     if(!SCAN.students) SCAN.students=await DB.getStudents();
     const classes=SCAN.classes||(SCAN.classes=await DB.getClasses());
     const match=SCAN.students
@@ -1793,6 +1755,20 @@ async function pageImbas(v){
       $('#sc-manual').value=''; box.innerHTML='';
       if(st) markStudent(st);
     });
+  };
+  // Mod pengimbas luaran: kekalkan fokus pada ruang input supaya setiap
+  // imbasan terus masuk tanpa guru perlu ketik ruang itu semula.
+  $('#sc-wedge').onclick=()=>{
+    SCAN.wedge=!SCAN.wedge;
+    const b=$('#sc-wedge'), n=$('#sc-wedge-note');
+    if(SCAN.wedge){
+      b.classList.add('btn-primary'); b.textContent='🔌 Mod Pengimbas AKTIF — ketik untuk henti';
+      n.textContent='Sedia menerima imbasan. Jangan ketik tempat lain.';
+      try{$('#sc-manual').focus();}catch(e){}
+    }else{
+      b.classList.remove('btn-primary'); b.textContent='🔌 Mod Pengimbas Luaran';
+      n.textContent='Untuk pengimbas USB/Bluetooth (jenis papan kekunci)';
+    }
   };
   $('#qc-print').onclick=()=>printQRCards($('#qc-kelas').value);
 }
@@ -1843,7 +1819,9 @@ async function handleScanText(raw){
   if(SCAN.cool[raw] && now-SCAN.cool[raw]<3000) return; // elak imbasan berganda
   SCAN.cool[raw]=now;
 
-  let sid=raw.startsWith('RMT:')?raw.slice(4):raw;
+  // Buang awalan "RMT" + pemisah. Sesetengah pengimbas menaip ':' sebagai ';' atau
+  // aksara lain bergantung susun atur papan kekunci — jadi terima apa-apa pemisah.
+  let sid=String(raw).trim().replace(/^RMT[^A-Za-z0-9]?/i,'');
   if(!SCAN.students) SCAN.students=await DB.getStudents();
   const st=SCAN.students.find(x=>x.id===sid);
   if(!st){ scanStatus('❌ QR tidak dikenali sebagai murid.','err'); return; }
@@ -1925,6 +1903,7 @@ async function c8SectionHTML(school,users,cls,year,month){
   const sah=await DB.getSah(cls.id,year,month);
   const guru=users.find(u=>u.id===cls.guruId);
   const nDays=daysInMonth(year,month);
+  const kini=new Date(); const hariIni=(kini.getFullYear()===year&&kini.getMonth()===month)?kini.getDate():0;
   const dayCells=[];
   for(let d2=1;d2<=nDays;d2++)dayCells.push({d:d2,off:isWeekend(year,month,d2)||isHoliday(year,month,d2)});
   const dayTh=dayCells.map(c=>`<th class="${c.off?'we':''}">${c.d}</th>`).join('');
@@ -2149,13 +2128,29 @@ async function pageMurid(v){
 
   if(!onPage('murid'))return; // halaman lain sudah dibuka — jangan tindih
 
+  const kad = isMobile();
+  const senaraiKad = list.map(st=>`<div class="pcard">
+      <div class="avat ${avatTone(st.nama)}">${esc(initials(st.nama))}</div>
+      <div class="pmeta">
+        <div class="pn">${esc(st.nama)}</div>
+        <div class="ps">${esc(clsName(st.kelasId))} · ${st.jantina==='L'?'Lelaki':'Perempuan'}</div>
+        <div class="pid">${esc(st.mykid||'—')}</div>
+      </div>
+      <span class="badge ${st.statusRMT==='Aktif'?'ok':(st.statusRMT==='Tamat'?'b':'off')}">${esc(st.statusRMT)}</span>
+      <button class="icon-btn" data-edit="${st.id}" title="Edit">${IC.edit}</button>
+    </div>`).join('');
+
   v.innerHTML=`
-    <div class="page-head"><h2>Maklumat Murid</h2><div class="spacer"></div>
-      ${isAdmin()?`<button class="btn" id="impBtn">Import CSV</button>
-      <button class="btn btn-primary" id="addBtn">${IC.plus} Tambah Murid</button>`:''}
+    <div class="page-head">
+      <div class="htxt"><h2>Maklumat Murid</h2>
+        <div class="sub">${list.length} murid RMT ${MURID_FILTER.statusRMT||'aktif'}</div></div>
+      <div class="spacer"></div>
+      ${isAdmin()?(kad?`<button class="fab-add" id="addBtn" title="Tambah murid">${IC.plus}</button>`
+        :`<button class="btn" id="impBtn">Import CSV</button>
+          <button class="btn btn-primary" id="addBtn">${IC.plus} Tambah Murid</button>`):''}
     </div>
     <div class="c8-toolbar no-print">
-      <div class="field"><label>Cari nama</label><input id="f-q" value="${esc(MURID_FILTER.q)}" placeholder="Nama murid…"></div>
+      <div class="field"><label>Cari nama</label><input id="f-q" value="${esc(MURID_FILTER.q)}" placeholder="Cari nama murid…"></div>
       <div class="field"><label>Kelas</label><select id="f-kelas">${clsOpts}</select></div>
       <div class="field"><label>Status RMT</label><select id="f-status">
         <option value="">Semua</option>
@@ -2164,9 +2159,17 @@ async function pageMurid(v){
         <option ${MURID_FILTER.statusRMT==='Tamat'?'selected':''}>Tamat</option></select></div>
       <span style="align-self:center;color:var(--muted);font-size:13px">${list.length} murid</span>
     </div>
-    <div class="tbl-wrap"><table class="data">
+    ${kad
+      ? (list.length? `<div class="plist">${senaraiKad}</div>`
+         : emptyRich('Belum ada murid dalam kelas ini',
+             'Tambah murid satu per satu, atau import senarai melalui fail CSV.',
+             (isAdmin()?`<button class="btn btn-primary" id="addBtn2">Tambah Murid</button>
+                <button class="btn btn-ghost" id="impBtn2">Import CSV</button>`:'')))
+      : `<div class="tbl-wrap"><table class="data">
       <thead><tr><th>Bil</th><th>Nama Penuh</th><th>No. MyKid</th><th>Jantina</th><th>Kelas</th><th>Status RMT</th><th class="no-print">Tindakan</th></tr></thead>
-      <tbody>${rows}</tbody></table></div>`;
+      <tbody>${rows}</tbody></table></div>`}`;
+  if($('#addBtn2'))$('#addBtn2').onclick=()=>studentModal(null,classes,v);
+  if($('#impBtn2'))$('#impBtn2').onclick=()=>importCSVModal(classes,v);
 
   $('#f-q').oninput=e=>{MURID_FILTER.q=e.target.value;pageMurid(v);};
   $('#f-kelas').onchange=e=>{MURID_FILTER.kelasId=e.target.value;pageMurid(v);};
@@ -2410,12 +2413,12 @@ async function pageTetapan(v){
       <p style="color:var(--muted);font-size:13px;margin:0 0 12px">
         Pilih warna rasmi sekolah — seluruh aplikasi (topbar, butang, menu) akan mengikut warna ini.</p>
       <div class="swatches" id="s-swatches">
-        ${['#7FB89A','#91BFE3','#8CC9A5','#A8C6A0','#9BB8D4','#B5A8C9','#D9A8A8','#E8C878','#8FBFB5']
+        ${['#7FB89A','#3D7E24','#022148','#0B7A3B','#1565C0','#8E1B1B','#6A1B9A','#E65100']
           .map(c=>`<button class="swatch" data-c="${c}" style="background:${c}" title="${c}"></button>`).join('')}
         <label class="swatch custom" title="Warna sendiri">🎨
           <input type="color" id="s-custcolor" value="${esc(s.themeColor||'#7FB89A')}" style="opacity:0;position:absolute;inset:0;cursor:pointer"></label>
       </div>
-      <p style="font-size:12px;color:var(--muted);margin:10px 0 0">Warna semasa: <b id="s-curcolor">${esc(s.themeColor||'#7FB89A (Soft Sage — lalai)')}</b>. Klik warna untuk terap &amp; simpan.</p>
+      <p style="font-size:12px;color:var(--muted);margin:10px 0 0">Warna semasa: <b id="s-curcolor">${esc(s.themeColor||'#7FB89A (sage e-RMT)')}</b>. Klik warna untuk terap &amp; simpan.</p>
     </div>
 
     <div class="card" style="max-width:640px;margin-top:18px">
@@ -2463,6 +2466,8 @@ async function pageTetapan(v){
     await DB.saveSchool({nama:$('#s-nama').value,kod:$('#s-kod').value,daerah:$('#s-daerah').value,
       negeri:$('#s-negeri').value,tel:$('#s-tel').value,alamat:$('#s-alamat').value,email:$('#s-email').value,
       gb:$('#s-gb').value,pkhem:$('#s-pkhem').value,penyelaras:$('#s-peny').value,logo:logoData});
+    simpanNamaSekolah($('#s-nama').value); terapkanIdentiti();
+    const bs=$('.topbar .brand .hide-sm'); if(bs)bs.textContent=schoolNames().pendek; // kemas kini serta-merta
     DB.addLog('Ubah tetapan sekolah','');
     toast('Tetapan disimpan','ok');
   };
@@ -2608,6 +2613,18 @@ async function pageKalendar(v){
     toast('Cuti dipadam','ok'); pageKalendar(v); });
 }
 
+const isMobile=()=>{try{return window.innerWidth<=860;}catch(e){return false;}};
+const initials=n=>String(n||'').trim().split(/\s+/).filter(w=>!/^(bin|binti|bt|a\/l|a\/p)$/i.test(w))
+  .slice(0,2).map(w=>w[0]).join('').toUpperCase();
+const avatTone=n=>['','b','a','r'][(String(n||'').length)%4];
+
+// Keadaan kosong bergaya: ikon, tajuk, huraian, tindakan
+function emptyRich(tajuk,huraian,butang){
+  return `<div class="empty"><div class="eico">${IC.empty}</div>
+    <h4>${esc(tajuk)}</h4><p>${esc(huraian)}</p>
+    ${butang?`<div class="eact">${butang}</div>`:''}</div>`;
+}
+
 function emptyState(msg){return `<div class="empty">${IC.empty}<div>${esc(msg)}</div></div>`;}
 
 // Kecilkan imej (logo) ke saiz max px, pulangkan dataURL PNG (jimat saiz simpanan)
@@ -2634,6 +2651,7 @@ const CSV_TEMPLATE='nama,mykid,jantina,tahun,kelas\nAhmad Bin Ali,180101015511,L
 --------------------------------------------------------- */
 window.closeModal=closeModal;
 (async function init(){
+  terapkanIdentiti();
   // Firebase: tangani hasil redirect Google (jika popup disekat tadi)
   if(USE_FIREBASE){
     try{
