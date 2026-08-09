@@ -16,7 +16,7 @@ PWA (boleh install) · Hosting **GitHub Pages** · Database **Firebase Firestore
 | Maklumat Kelas (CRUD, guru kelas) | ✅ |
 | Guru & Pengguna (CRUD, role, kelas, aktif/tidak) | ✅ |
 | Tetapan Sekolah | ✅ |
-| Cetak PDF A4 Landscape (borang C8) | ✅ |
+| Cetak PDF A4 Landscape (borang C8) — pilihan **RMT** atau **PSS** | ✅ |
 | PWA (manifest, service worker, installable, offline shell, dark mode) | ✅ |
 | Firestore Security Rules | ✅ |
 | **Mod Demo** (guna terus tanpa Firebase, data dalam pelayar) | ✅ |

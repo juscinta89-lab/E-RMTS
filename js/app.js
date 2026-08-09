@@ -1026,7 +1026,6 @@ async function pageKehadiran(v){
         <div class="sub" id="c8-sub"></div></div>
       <div class="spacer"></div>
       <span class="savepill" id="c8-save"></span>
-      ${isAdmin()?`<button class="btn" id="printC8All">${IC.print} Semua Kelas</button>`:''}
       <button class="btn btn-blue" id="printC8">${IC.print} Cetak</button></div>
     <div class="c8-toolbar no-print">
       <div class="field"><label>Kelas</label><select id="c8-kelas">${clsOpts}</select></div>
@@ -1046,8 +1045,33 @@ async function pageKehadiran(v){
   $('#c8-kelas').onchange=e=>{C8_STATE.kelasId=e.target.value;renderC8();};
   $('#c8-bulan').onchange=e=>{C8_STATE.month=+e.target.value;renderC8();};
   $('#c8-tahun').onchange=e=>{C8_STATE.year=+e.target.value;renderC8();};
-  $('#printC8').onclick=printC8;
-  if($('#printC8All'))$('#printC8All').onclick=printC8All;
+  // Data kehadiran sama; hanya tajuk borang cetakan berbeza (RMT / PSS)
+  $('#printC8').onclick=()=>{
+    openModal(`
+      <div class="modal-head"><h3>Cetak Borang C8</h3><div style="flex:1"></div>
+        <button class="icon-btn" onclick="closeModal()">${IC.x}</button></div>
+      <div class="modal-body">
+        <p style="margin:0 0 14px;color:var(--muted);font-size:13px">
+          Pilih program. Rekod kehadiran adalah sama — hanya tajuk borang berbeza.</p>
+        <div class="field"><label>Program</label>
+          <select id="pc-prog">
+            <option value="RMT">RMT — Rancangan Makanan Tambahan</option>
+            <option value="PSS">PSS — Program Susu Sekolah</option>
+          </select></div>
+        <div class="field"><label>Skop</label>
+          <select id="pc-skop">
+            <option value="satu">Kelas ini sahaja</option>
+            ${isAdmin()?'<option value="semua">Semua kelas (satu kelas satu halaman)</option>':''}
+          </select></div>
+      </div>
+      <div class="modal-foot"><button class="btn btn-ghost" onclick="closeModal()">Batal</button>
+        <button class="btn btn-primary" id="pc-go">${IC.print} Cetak</button></div>`);
+    $('#pc-go').onclick=()=>{
+      const prog=$('#pc-prog').value, skop=$('#pc-skop').value;
+      closeModal();
+      if(skop==='semua') printC8All(prog); else printC8(prog);
+    };
+  };
   renderC8();
 }
 
@@ -1975,7 +1999,7 @@ async function printQRCards(kelasId){
 }
 
 /* Cetak pukal: borang C8 SEMUA kelas utk bulan/tahun semasa, satu kelas satu halaman */
-async function c8SectionHTML(school,users,cls,year,month){
+async function c8SectionHTML(school,users,cls,year,month,program='RMT'){
   const roster=await rosterStudents(cls.id,year);
   const rec=await DB.getAttendance(cls.id,year,month);
   const pm=month===0?11:month-1, py=month===0?year-1:year;
@@ -2006,7 +2030,7 @@ async function c8SectionHTML(school,users,cls,year,month){
   return `<div class="sec">
     <div class="hd">${school.logo?`<img src="${school.logo}">`:''}
       <div class="mid"><div class="t1">${esc((school.nama||'').toUpperCase())}</div>
-        <div class="t2">REKOD KEHADIRAN MURID RMT</div></div>
+        <div class="t2">REKOD KEHADIRAN MURID ${program}</div></div>
       <div class="tag">BORANG C8</div></div>
     <div class="info"><div><b>BULAN:</b> ${MONTHS[month].toUpperCase()} ${year}</div>
       <div><b>KELAS:</b> ${esc(clsLabel(cls).toUpperCase())}</div>
@@ -2025,15 +2049,15 @@ async function c8SectionHTML(school,users,cls,year,month){
   </div>`;
 }
 
-async function printC8All(){
+async function printC8All(program='RMT'){
   const {year,month}=C8_STATE;
   const btn=$('#printC8All'); if(btn){btn.disabled=true;btn.innerHTML='<span class="spinner dark"></span> Menjana…';}
   try{
     const [school,users,classes]=await Promise.all([DB.getSchool(),DB.getUsers(),DB.getClasses()]);
     const list=sortCls(classes);
     let secs='';
-    for(const c of list) secs+=await c8SectionHTML(school,users,c,year,month);
-    const html=`<!DOCTYPE html><html lang="ms"><head><meta charset="utf-8"><title>C8 Semua Kelas — ${MONTHS[month]} ${year}</title><style>
+    for(const c of list) secs+=await c8SectionHTML(school,users,c,year,month,program);
+    const html=`<!DOCTYPE html><html lang="ms"><head><meta charset="utf-8"><title>C8 ${program} Semua Kelas — ${MONTHS[month]} ${year}</title><style>
       @page{size:A4 landscape;margin:9mm}
       *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
       body{font-family:Arial,Helvetica,sans-serif;margin:0;color:#000}
@@ -2061,13 +2085,13 @@ async function printC8All(){
     document.body.appendChild(fr); fr.srcdoc=html;
     fr.onload=()=>{setTimeout(()=>{try{fr.contentWindow.focus();fr.contentWindow.print();}
       catch(e){toast('Gagal cetak: '+e.message,'err');} setTimeout(()=>fr.remove(),4000);},250);};
-    DB.addLog('Cetak pukal C8',`${MONTHS[month]} ${year} (${list.length} kelas)`);
+    DB.addLog('Cetak pukal C8',`${program} · ${MONTHS[month]} ${year} (${list.length} kelas)`);
   }catch(e){ toast(authErr(e),'err'); }
   if(btn){btn.disabled=false;btn.innerHTML=IC.print+' Cetak Semua Kelas';}
 }
 
 /* Cetakan rasmi C8 — dokumen berasingan, A4 landscape, gaya borang KPM */
-async function printC8(){
+async function printC8(program='RMT'){
   const src=$('.c8');
   if(!src){toast('Borang belum dipaparkan.','err');return;}
   const {kelasId,year,month}=C8_STATE;
@@ -2115,7 +2139,7 @@ async function printC8(){
       ${school.logo?`<img src="${school.logo}" alt="logo">`:''}
       <div class="mid">
         <div class="t1">${esc((school.nama||'').toUpperCase())}</div>
-        <div class="t2">REKOD KEHADIRAN MURID RMT</div>
+        <div class="t2">REKOD KEHADIRAN MURID ${program}</div>
       </div>
       <div class="tag">BORANG C8</div>
     </div>
