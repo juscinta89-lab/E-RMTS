@@ -52,6 +52,23 @@ GitHub Pages (satu sahaja)
 
 ---
 
+## Kemas kini takwim persekolahan (sekali setahun)
+
+Bila Takwim Persekolahan KPM tahun baharu keluar:
+
+1. Buka `js/takwim.js` — semua data cuti ada dalam SATU fail ini sahaja.
+2. Salin blok `2026:{...}`, tukar tahunnya, dan isi tarikh dari:
+   - **Lampiran A** → `A:` (Kedah, Kelantan, Terengganu)
+   - **Lampiran B** → `B:` (negeri lain)
+   - **Lampiran C** → cuti perayaan, masukkan dalam kumpulan masing-masing
+3. Commit & push **sekali** — pilihan tahun baharu terus muncul di menu
+   **Hari & Cuti** untuk **semua sekolah pelanggan**. Tiada kerja lain diperlukan.
+4. Beritahu sekolah: Hari & Cuti → Muat Kalendar KPM → pilih tahun & kumpulan.
+
+> Takwim adalah sama untuk seluruh negara (cuma Kumpulan A/B berbeza),
+> jadi satu kemas kini melayani semua pelanggan. Cuti kalendar Islam dan
+> cuti negeri masih perlu ditambah manual oleh admin sekolah.
+
 ## Selenggaraan
 - **Update sistem**: edit kod → naikkan `CACHE_VER` dalam `service-worker.js` →
   push SEKALI → semua sekolah dapat versi baru automatik.

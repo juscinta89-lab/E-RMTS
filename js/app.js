@@ -73,43 +73,9 @@ const IC = {
   empty:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 12l9 4 9-4M3 17l9 4 9-4"/></svg>'
 };
 
-/* =========================================================
-   KALENDAR AKADEMIK KPM — sumber: Takwim Persekolahan KPM
-   (Lampiran A: Kumpulan A, Lampiran B: Kumpulan B, Lampiran C: Cuti Perayaan)
-   Julat: [mula, akhir, nama] — kedua-dua hujung TERMASUK.
-   ========================================================= */
-const KPM_KALENDAR={
-  2026:{
-    A:[ /* Kedah, Kelantan, Terengganu */
-      ['2026-01-01','2026-01-10','Cuti Akhir Persekolahan 2025'],
-      ['2026-02-15','2026-02-19','Cuti Tahun Baru Cina'],
-      ['2026-03-19','2026-03-19','Cuti Tambahan Hari Raya Aidilfitri'],
-      ['2026-03-20','2026-03-28','Cuti Penggal 1'],
-      ['2026-05-22','2026-06-06','Cuti Pertengahan Tahun'],
-      ['2026-08-28','2026-09-05','Cuti Penggal 2'],
-      ['2026-11-08','2026-11-09','Cuti Deepavali'],
-      ['2026-12-04','2026-12-31','Cuti Akhir Persekolahan']
-    ],
-    B:[ /* Johor, Melaka, N9, Pahang, Perak, Perlis, P.Pinang, Sabah, Sarawak, Selangor, WP */
-      ['2026-01-01','2026-01-11','Cuti Akhir Persekolahan 2025'],
-      ['2026-02-16','2026-02-20','Cuti Tahun Baru Cina'],
-      ['2026-03-19','2026-03-20','Cuti Tambahan Hari Raya Aidilfitri'],
-      ['2026-03-21','2026-03-29','Cuti Penggal 1'],
-      ['2026-05-23','2026-06-07','Cuti Pertengahan Tahun'],
-      ['2026-08-29','2026-09-06','Cuti Penggal 2'],
-      ['2026-11-08','2026-11-08','Cuti Deepavali'],
-      ['2026-11-10','2026-11-10','Cuti Tambahan Deepavali'],
-      ['2026-12-05','2026-12-31','Cuti Akhir Persekolahan']
-    ],
-    /* Kelepasan am persekutuan bertarikh tetap (bukan kalendar Islam) */
-    umum:[
-      ['2026-05-01','Hari Pekerja'],
-      ['2026-08-31','Hari Kebangsaan'],
-      ['2026-09-16','Hari Malaysia'],
-      ['2026-12-25','Hari Krismas']
-    ]
-  }
-};
+/* Data takwim dimuat dari js/takwim.js (fail berasingan supaya
+   kemas kini tahunan tidak menyentuh app.js). */
+const KPM_KALENDAR = window.KPM_KALENDAR || {};
 
 function julatTarikh(mula,akhir,nama){
   const out=[]; const d=new Date(mula+'T00:00:00'), hujung=new Date(akhir+'T00:00:00');
@@ -2706,7 +2672,7 @@ async function pageKalendar(v){
         tak perlu taip satu-satu. Tarikh yang sudah wujud akan dilangkau.</p>
       <div class="grid-2">
         <div class="field"><label>Tahun kalendar</label>
-          <select id="kk-tahun">${Object.keys(KPM_KALENDAR).map(t=>`<option>${t}</option>`).join('')}</select></div>
+          <select id="kk-tahun">${Object.keys(KPM_KALENDAR).sort().map(t=>`<option>${t}</option>`).join('')}</select></div>
         <div class="field"><label>Kumpulan</label>
           <select id="kk-kump">
             <option value="A" ${preset==='A'?'selected':''}>Kumpulan A — Kedah, Kelantan, Terengganu</option>
@@ -2744,7 +2710,7 @@ async function pageKalendar(v){
   $('#k-save-days').onclick=async()=>{ const rd=readRest();
     await DB.saveSchool({restDays:rd}); APP_CFG.restDays=rd.length?rd:[0,6];
     toast('Hari persekolahan disimpan','ok'); };
-  $('#kk-load').onclick=async()=>{
+  if($('#kk-load')) $('#kk-load').onclick=async()=>{
     const tahun=+$('#kk-tahun').value, kump=$('#kk-kump').value, umum=$('#kk-umum').checked;
     const senarai=binaCutiKPM(tahun,kump,umum);
     if(!senarai.length){toast('Kalendar tahun ini belum tersedia.','err');return;}

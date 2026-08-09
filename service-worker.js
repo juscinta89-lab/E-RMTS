@@ -1,12 +1,13 @@
 /* Service Worker — RMT Attendance SK Belukar
    Strategi: network-first untuk dokumen, cache-first untuk aset statik.
    Naikkan CACHE_VER setiap kali fail dikemas kini supaya auto-update. */
-const CACHE_VER = 'rmt-skb-v31';
+const CACHE_VER = 'rmt-skb-v32';
 const SHELL = [
   './',
   './index.html',
   './css/styles.css',
   './js/app.js',
+  './js/takwim.js',
   './js/firebase-config.js',
   './manifest.json',
   './assets/logo.png',
