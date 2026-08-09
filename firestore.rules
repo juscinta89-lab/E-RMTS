@@ -36,9 +36,21 @@ service cloud.firestore {
       allow read:  if isSignedIn();
       allow write: if isAdmin();
     }
+    // students — admin & Guru RMT boleh urus semua.
+    // Guru kelas boleh tambah/edit murid KELAS SENDIRI sahaja.
+    // Padam dikhaskan kepada admin (memadam murid memusnahkan rekod kehadiran).
     match /students/{id} {
-      allow read:  if isSignedIn();
-      allow write: if isAdmin();
+      function guruRMT(){ return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.token.email))
+        && profile().data.role == 'Guru RMT'; }
+      function kelasSaya(){ return profile().data.kelasId; }
+      allow read:   if isSignedIn();
+      allow create: if isAdmin() || guruRMT()
+        || (isSignedIn() && request.resource.data.kelasId == kelasSaya());
+      allow update: if isAdmin() || guruRMT()
+        || (isSignedIn() && request.resource.data.kelasId == kelasSaya()
+            && resource.data.kelasId == kelasSaya());
+      allow delete: if isAdmin();
     }
 
     // attendance — guru & admin boleh baca/tulis.

@@ -461,6 +461,9 @@ let CURRENT=null; // {id,nama,role,kelasId,...}
 const isAdmin = ()=> CURRENT && ['Administrator','Guru Besar','PK HEM'].includes(CURRENT.role);
 // Guru RMT menguruskan program RMT seluruh sekolah — akses semua kelas utk kehadiran/borang
 const seesAllClasses = ()=> isAdmin() || (CURRENT && CURRENT.role==='Guru RMT');
+// Guru kelas boleh urus murid KELAS SENDIRI; admin & Guru RMT boleh urus semua.
+const bolehTambahMurid = ()=> !!(seesAllClasses() || (CURRENT && CURRENT.kelasId));
+const bolehUrusMurid = st => !!(seesAllClasses() || (CURRENT && st && st.kelasId===CURRENT.kelasId));
 
 // Konfigurasi kalendar global (hari cuti mingguan + cuti/kelepasan am)
 // restDays: nombor hari (0=Ahad,1=Isnin,...,6=Sabtu) yang BUKAN hari persekolahan.
@@ -2247,7 +2250,7 @@ async function pageMurid(v){
       <td>${s.jantina==='L'?'Lelaki':'Perempuan'}</td><td>${esc(clsName(s.kelasId))}</td>
       <td><span class="badge ${s.statusRMT==='Aktif'?'ok':(s.statusRMT==='Tamat'?'b':'off')}">${esc(s.statusRMT)}</span></td>
       <td class="no-print" style="white-space:nowrap">
-        <button class="btn btn-sm" data-edit="${s.id}">Edit</button>
+        ${bolehUrusMurid(s)?`<button class="btn btn-sm" data-edit="${s.id}">Edit</button>`:''}
         ${isAdmin()?`<button class="btn btn-sm btn-danger" data-del="${s.id}">Padam</button>`:''}
       </td></tr>`).join('') || `<tr><td colspan="7">${emptyState('Tiada murid dijumpai.')}</td></tr>`;
 
@@ -2262,7 +2265,7 @@ async function pageMurid(v){
         <div class="pid">${esc(st.mykid||'—')}</div>
       </div>
       <span class="badge ${st.statusRMT==='Aktif'?'ok':(st.statusRMT==='Tamat'?'b':'off')}">${esc(st.statusRMT)}</span>
-      <button class="icon-btn" data-edit="${st.id}" title="Edit">${IC.edit}</button>
+      ${bolehUrusMurid(st)?`<button class="icon-btn" data-edit="${st.id}" title="Edit">${IC.edit}</button>`:''}
     </div>`).join('');
 
   v.innerHTML=`
@@ -2270,8 +2273,8 @@ async function pageMurid(v){
       <div class="htxt"><h2>Maklumat Murid</h2>
         <div class="sub">${list.length} murid RMT ${MURID_FILTER.statusRMT||'aktif'}</div></div>
       <div class="spacer"></div>
-      ${isAdmin()?(kad?`<button class="fab-add" id="addBtn" title="Tambah murid">${IC.plus}</button>`
-        :`<button class="btn" id="impBtn">Import CSV</button>
+      ${bolehTambahMurid()?(kad?`<button class="fab-add" id="addBtn" title="Tambah murid">${IC.plus}</button>`
+        :`${isAdmin()?`<button class="btn" id="impBtn">Import CSV</button>`:''}
           <button class="btn btn-primary" id="addBtn">${IC.plus} Tambah Murid</button>`):''}
     </div>
     <div class="c8-toolbar no-print">
@@ -2288,8 +2291,8 @@ async function pageMurid(v){
       ? (list.length? `<div class="plist">${senaraiKad}</div>`
          : emptyRich('Belum ada murid dalam kelas ini',
              'Tambah murid satu per satu, atau import senarai melalui fail CSV.',
-             (isAdmin()?`<button class="btn btn-primary" id="addBtn2">Tambah Murid</button>
-                <button class="btn btn-ghost" id="impBtn2">Import CSV</button>`:'')))
+             (bolehTambahMurid()?`<button class="btn btn-primary" id="addBtn2">Tambah Murid</button>
+                ${isAdmin()?`<button class="btn btn-ghost" id="impBtn2">Import CSV</button>`:''}`:'')))
       : `<div class="tbl-wrap"><table class="data">
       <thead><tr><th>Bil</th><th>Nama Penuh</th><th>No. MyKid</th><th>Jantina</th><th>Kelas</th><th>Status RMT</th><th class="no-print">Tindakan</th></tr></thead>
       <tbody>${rows}</tbody></table></div>`}`;
@@ -2308,7 +2311,12 @@ async function pageMurid(v){
 
 function studentModal(s,classes,v){
   const isEdit=!!s; s=s||{jantina:'L',statusRMT:'Aktif',tahun:1};
-  const clsOpts=sortCls(classes).map(c=>`<option value="${c.id}" ${s.kelasId===c.id?'selected':''}>${esc(clsLabel(c))}</option>`).join('');
+  // Guru kelas hanya boleh menempatkan murid dalam kelas sendiri
+  const kunciKelas=!seesAllClasses() && !!CURRENT.kelasId;
+  if(kunciKelas && !isEdit){ s.kelasId=CURRENT.kelasId;
+    const kc=classes.find(c=>c.id===CURRENT.kelasId); if(kc)s.tahun=kc.tahun||s.tahun; }
+  const senaraiKelas=kunciKelas?classes.filter(c=>c.id===CURRENT.kelasId):classes;
+  const clsOpts=sortCls(senaraiKelas).map(c=>`<option value="${c.id}" ${s.kelasId===c.id?'selected':''}>${esc(clsLabel(c))}</option>`).join('');
   openModal(`
     <div class="modal-head"><h3>${isEdit?'Edit':'Tambah'} Murid</h3><div class="spacer" style="flex:1"></div>
       <button class="icon-btn" onclick="closeModal()">${IC.x}</button></div>
@@ -2322,7 +2330,9 @@ function studentModal(s,classes,v){
       </div>
       <div class="grid-2">
         <div class="field"><label>Tahun</label><select id="m-thn">${[1,2,3,4,5,6].map(t=>`<option ${s.tahun===t?'selected':''}>${t}</option>`).join('')}</select></div>
-        <div class="field"><label>Kelas</label><select id="m-kelas">${clsOpts}</select></div>
+        <div class="field"><label>Kelas</label>
+          <select id="m-kelas" ${kunciKelas?'disabled':''}>${clsOpts}</select>
+          ${kunciKelas?'<div style="font-size:11.5px;color:var(--muted);margin-top:5px">Ditetapkan kepada kelas anda</div>':''}</div>
       </div>
       <div class="grid-2">
         <div class="field"><label>Tarikh mula dalam program</label>
@@ -2347,7 +2357,9 @@ function studentModal(s,classes,v){
     const mula=$('#m-mula').value, tamat=$('#m-tamat').value;
     if(mula&&tamat&&tamat<mula){toast('Tarikh tamat tidak boleh lebih awal daripada tarikh mula.','err');return;}
     const obj={...(isEdit?{id:s.id}:{}),nama,mykid:$('#m-kid').value.trim(),jantina:$('#m-jan').value,
-      tahun:+$('#m-thn').value,kelasId:$('#m-kelas').value,statusRMT:$('#m-status').value,mula,tamat};
+      tahun:+$('#m-thn').value,kelasId:kunciKelas?CURRENT.kelasId:$('#m-kelas').value,
+      statusRMT:$('#m-status').value,mula,tamat};
+    if(!bolehUrusMurid(obj)){toast('Anda hanya boleh mengurus murid kelas sendiri.','err');return;}
     await DB.saveStudent(obj); DB.addLog(isEdit?'Edit murid':'Tambah murid',obj.nama); closeModal(); toast('Murid disimpan','ok'); pageMurid(v);
   };
 }
