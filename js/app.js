@@ -844,7 +844,7 @@ function toggleDark(){
 --------------------------------------------------------- */
 async function pageDashboard(v){
   const [students,classes,users,school]=await Promise.all([DB.getStudents(),DB.getClasses(),DB.getUsers(),DB.getSchool()]);
-  const rmtAktif=students.filter(s=>s.statusRMT==='Aktif');
+  const rmtAktif=students.filter(aktifHariIni);
   const today=new Date(); const y=today.getFullYear(),m=today.getMonth(),d=today.getDate();
   // hadir hari ini merentas semua kelas
   let hadir=0,tidak=0;
@@ -1081,7 +1081,7 @@ async function renderC8(){
   const {kelasId,year,month}=C8_STATE;
   const [students,classes,school]=await Promise.all([DB.getStudents(),DB.getClasses(),DB.getSchool()]);
   const cls=classes.find(c=>c.id===kelasId);
-  const roster=await rosterStudents(kelasId,year);
+  const roster=await rosterStudents(kelasId,year,month);
   const rec=await DB.getAttendance(kelasId,year,month);
   const sahInfo=await DB.getSah(kelasId,year,month);
   C8_STATE.locked=!!sahInfo;
@@ -1377,19 +1377,33 @@ async function renderBorang(){
 --------------------------------------------------------- */
 // Senarai murid sesebuah kelas untuk tahun tertentu.
 // Tahun lepas (sudah diproses naik kelas) → guna snapshot beku; jika tiada → senarai semasa.
-async function rosterStudents(kelasId,year){
+/* Keahlian program mengikut tempoh:
+   - `mula`  : tarikh murid mula menyertai (kosong = sejak awal)
+   - `tamat` : tarikh murid berhenti/berpindah (kosong = masih dalam program)
+   Murid hanya muncul dalam borang bulan yang dia benar-benar dalam program. */
+function aktifDalamTempoh(st,year,month){
+  if(st.statusRMT!=='Aktif') return false;
+  const awal = month==null ? new Date(year,0,1)  : new Date(year,month,1);
+  const akhir= month==null ? new Date(year,11,31): new Date(year,month+1,0);
+  if(st.mula){ const m=new Date(st.mula+'T00:00:00'); if(!isNaN(m)&&m>akhir) return false; }
+  if(st.tamat){ const t=new Date(st.tamat+'T00:00:00'); if(!isNaN(t)&&t<awal) return false; }
+  return true;
+}
+function aktifHariIni(st){ const n=new Date(); return aktifDalamTempoh(st,n.getFullYear(),n.getMonth()); }
+
+async function rosterStudents(kelasId,year,month){
   const sesi=APP_CFG.sesi||new Date().getFullYear();
   if(year<sesi){
     const snap=await DB.getRoster(year);
     if(snap&&snap.students){
       return Object.entries(snap.students)
-        .filter(([id,st])=>st.kelasId===kelasId&&st.statusRMT==='Aktif')
         .map(([id,st])=>({id,...st}))
+        .filter(st=>st.kelasId===kelasId&&aktifDalamTempoh(st,year,month))
         .sort((a,b)=>a.nama.localeCompare(b.nama));
     }
   }
   return (await DB.getStudents())
-    .filter(s=>s.kelasId===kelasId&&s.statusRMT==='Aktif')
+    .filter(s=>s.kelasId===kelasId&&aktifDalamTempoh(s,year,month))
     .sort((a,b)=>a.nama.localeCompare(b.nama));
 }
 
@@ -1401,7 +1415,8 @@ async function prosesNaikKelas(){
   // 1. Bekukan roster sesi semasa
   const snapStudents={};
   students.forEach(s=>{snapStudents[s.id]={nama:s.nama,mykid:s.mykid||'',jantina:s.jantina,
-    tahun:s.tahun,kelasId:s.kelasId||null,statusRMT:s.statusRMT};});
+    tahun:s.tahun,kelasId:s.kelasId||null,statusRMT:s.statusRMT,
+    mula:s.mula||'',tamat:s.tamat||''};});
   await DB.saveRoster(sesi,{sesi,tarikh:new Date().toISOString(),
     students:snapStudents,
     classes:sortCls(classes).map(c=>({id:c.id,tahun:c.tahun,nama:c.nama}))});
@@ -1848,7 +1863,7 @@ async function pageImbas(v){
     if(!SCAN.students) SCAN.students=await DB.getStudents();
     const classes=SCAN.classes||(SCAN.classes=await DB.getClasses());
     const match=SCAN.students
-      .filter(st=>st.statusRMT==='Aktif'&&st.nama.toLowerCase().includes(q))
+      .filter(st=>aktifHariIni(st)&&st.nama.toLowerCase().includes(q))
       .slice(0,8);
     box.innerHTML=match.length?match.map(st=>{
       const c=classes.find(x=>x.id===st.kelasId);
@@ -1934,6 +1949,12 @@ async function handleScanText(raw){
 
 async function markStudent(st){
   if(st.statusRMT!=='Aktif'){ scanStatus(`❌ ${esc(st.nama)} — status ${esc(st.statusRMT)}, bukan murid RMT aktif.`,'err'); return; }
+  if(!aktifHariIni(st)){
+    const sebab = st.mula && new Date(st.mula+'T00:00:00')>new Date()
+      ? `belum bermula dalam program (mula ${st.mula})`
+      : `sudah tamat/berpindah (tamat ${st.tamat})`;
+    scanStatus(`❌ ${esc(st.nama)} — ${esc(sebab)}.`,'err'); return;
+  }
   if(!st.kelasId){ scanStatus(`❌ ${esc(st.nama)} tiada kelas. Tetapkan kelas di Maklumat Murid.`,'err'); return; }
 
   const t=new Date(), y=t.getFullYear(), m=t.getMonth(), d=t.getDate();
@@ -1967,7 +1988,7 @@ async function printQRCards(kelasId){
   if(typeof qrcode==='undefined'){ toast('Pustaka QR belum dimuat. Semak sambungan internet & muat semula.','err'); return; }
   const [students,classes,school]=await Promise.all([DB.getStudents(),DB.getClasses(),DB.getSchool()]);
   const cls=classes.find(c=>c.id===kelasId)||{};
-  const roster=students.filter(s=>s.kelasId===kelasId&&s.statusRMT==='Aktif')
+  const roster=students.filter(s=>s.kelasId===kelasId&&aktifHariIni(s))
     .sort((a,b)=>a.nama.localeCompare(b.nama));
   if(!roster.length){ toast('Tiada murid RMT aktif dalam kelas ini.','err'); return; }
   const cards=roster.map(st=>{
@@ -2000,7 +2021,7 @@ async function printQRCards(kelasId){
 
 /* Cetak pukal: borang C8 SEMUA kelas utk bulan/tahun semasa, satu kelas satu halaman */
 async function c8SectionHTML(school,users,cls,year,month,program='RMT'){
-  const roster=await rosterStudents(cls.id,year);
+  const roster=await rosterStudents(cls.id,year,month);
   const rec=await DB.getAttendance(cls.id,year,month);
   const pm=month===0?11:month-1, py=month===0?year-1:year;
   const recPrev=await DB.getAttendance(cls.id,py,pm);
@@ -2303,6 +2324,17 @@ function studentModal(s,classes,v){
         <div class="field"><label>Tahun</label><select id="m-thn">${[1,2,3,4,5,6].map(t=>`<option ${s.tahun===t?'selected':''}>${t}</option>`).join('')}</select></div>
         <div class="field"><label>Kelas</label><select id="m-kelas">${clsOpts}</select></div>
       </div>
+      <div class="grid-2">
+        <div class="field"><label>Tarikh mula dalam program</label>
+          <input type="date" id="m-mula" value="${esc(s.mula||'')}"></div>
+        <div class="field"><label>Tarikh tamat / berpindah</label>
+          <input type="date" id="m-tamat" value="${esc(s.tamat||'')}"></div>
+      </div>
+      <p style="color:var(--muted);font-size:12px;margin:-6px 0 14px;line-height:1.5">
+        Biarkan <b>kosong</b> jika murid dalam program sepanjang tahun.
+        Isi <b>tarikh mula</b> untuk murid baharu masuk pertengahan tahun — namanya tidak
+        akan muncul dalam borang bulan sebelum itu. Isi <b>tarikh tamat</b> bila murid
+        berpindah keluar — rekod lamanya kekal, cuma tidak muncul pada bulan seterusnya.</p>
       <div class="field"><label>Status RMT</label><select id="m-status">
         <option ${s.statusRMT==='Aktif'?'selected':''}>Aktif</option>
         <option ${s.statusRMT==='Tidak Aktif'?'selected':''}>Tidak Aktif</option>
@@ -2312,8 +2344,10 @@ function studentModal(s,classes,v){
       <button class="btn btn-primary" id="m-save">Simpan</button></div>`);
   $('#m-save').onclick=async()=>{
     const nama=$('#m-nama').value.trim(); if(!nama){toast('Nama wajib diisi','err');return;}
+    const mula=$('#m-mula').value, tamat=$('#m-tamat').value;
+    if(mula&&tamat&&tamat<mula){toast('Tarikh tamat tidak boleh lebih awal daripada tarikh mula.','err');return;}
     const obj={...(isEdit?{id:s.id}:{}),nama,mykid:$('#m-kid').value.trim(),jantina:$('#m-jan').value,
-      tahun:+$('#m-thn').value,kelasId:$('#m-kelas').value,statusRMT:$('#m-status').value};
+      tahun:+$('#m-thn').value,kelasId:$('#m-kelas').value,statusRMT:$('#m-status').value,mula,tamat};
     await DB.saveStudent(obj); DB.addLog(isEdit?'Edit murid':'Tambah murid',obj.nama); closeModal(); toast('Murid disimpan','ok'); pageMurid(v);
   };
 }
@@ -2324,8 +2358,10 @@ function importCSVModal(classes,v){
       <button class="icon-btn" onclick="closeModal()">${IC.x}</button></div>
     <div class="modal-body">
       <p style="margin-top:0;color:var(--muted);font-size:13px">
-        Format tajuk: <code>nama,mykid,jantina,tahun,kelas</code><br>
-        jantina = L atau P · kelas = padanan "Tahun X Nama" (cth: Tahun 1 Amanah).</p>
+        Format tajuk: <code>nama,mykid,jantina,tahun,kelas,mula,tamat</code><br>
+        jantina = L atau P · kelas = padanan "Tahun X Nama" (cth: Tahun 1 Amanah)<br>
+        <b>mula/tamat</b> (pilihan, format YYYY-MM-DD) — isi hanya jika murid masuk atau
+        berpindah pertengahan tahun. Biarkan kosong untuk murid sepanjang tahun.</p>
       <button class="btn btn-sm" id="csv-dl" style="margin-bottom:14px">⬇ Muat turun template CSV</button>
       <div class="field"><label>Pilih fail CSV</label><input type="file" id="csv-file" accept=".csv"></div>
       <textarea id="csv-text" rows="6" placeholder="Atau tampal teks CSV di sini…"></textarea>
@@ -2348,7 +2384,9 @@ function importCSVModal(classes,v){
       let cls=classes.find(c=>clsLabel(c).toLowerCase()===kelasName)
             ||classes.find(c=>c.nama.toLowerCase()===kelasName&&c.tahun===tahun)
             ||classes.find(c=>!c.tahun&&c.nama.toLowerCase()===kelasName);
-      await DB.saveStudent({nama,mykid:(p[idx('mykid')]||'').trim(),
+      const cMula=idx('mula')>=0?(p[idx('mula')]||'').trim():'';
+      const cTamat=idx('tamat')>=0?(p[idx('tamat')]||'').trim():'';
+      await DB.saveStudent({mula:cMula,tamat:cTamat,nama,mykid:(p[idx('mykid')]||'').trim(),
         jantina:((p[idx('jantina')]||'L').trim().toUpperCase().startsWith('P'))?'P':'L',
         tahun,kelasId:cls?cls.id:(classes[0]?.id||''),statusRMT:'Aktif'});
       ok++;
@@ -2793,7 +2831,10 @@ function downloadCSV(filename,content){
   const url=URL.createObjectURL(blob); const a=document.createElement('a');
   a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
 }
-const CSV_TEMPLATE='nama,mykid,jantina,tahun,kelas\nAhmad Bin Ali,180101015511,L,1,Tahun 1 Amanah\nSiti Binti Kamal,180203105522,P,1,Tahun 1 Amanah\n';
+const CSV_TEMPLATE='nama,mykid,jantina,tahun,kelas,mula,tamat\n'+
+  'Ahmad Bin Ali,180101015511,L,1,Tahun 1 Amanah,,\n'+
+  'Siti Binti Kamal,180203105522,P,1,Tahun 1 Amanah,,\n'+
+  'Murid Masuk Pertengahan,180305045533,L,1,Tahun 1 Amanah,2026-07-01,\n';
 
 /* ---------------------------------------------------------
    13. Mula
