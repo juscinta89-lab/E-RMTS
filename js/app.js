@@ -334,6 +334,31 @@ const DB = {
     }
     return (DEMO.logs||[]).slice(0,n);
   },
+  /* Tulis banyak sel sekali gus — SATU penulisan, bukan satu per sel */
+  async saveAttendanceMany(kelasId,year,month,patch){
+    const key=`${kelasId}_${year}_${month}`;
+    if(USE_FIREBASE){
+      await fbDB.collection('attendance').doc(key).set({records:patch},{merge:true});
+      return;
+    }
+    DEMO.attendance[key]=DEMO.attendance[key]||{records:{}};
+    const r=DEMO.attendance[key].records;
+    Object.entries(patch).forEach(([sid,hari])=>{
+      r[sid]=r[sid]||{}; Object.assign(r[sid],hari);
+    });
+    saveDemo(DEMO);
+  },
+  /* Kosongkan semua tanda bulan tersebut (pengesahan dikekalkan) */
+  async clearAttendance(kelasId,year,month){
+    const key=`${kelasId}_${year}_${month}`;
+    if(USE_FIREBASE){
+      const ref=fbDB.collection('attendance').doc(key);
+      try{ await ref.update({records:{}}); }catch(e){ await ref.set({records:{}},{merge:true}); }
+      return;
+    }
+    if(DEMO.attendance[key]) DEMO.attendance[key].records={};
+    saveDemo(DEMO);
+  },
   async getSah(kelasId,year,month){
     const key=`${kelasId}_${year}_${month}`;
     if(USE_FIREBASE){const d=await fbDB.collection('attendance').doc(key).get();
@@ -1147,6 +1172,7 @@ async function renderC8(){
   }else if(bolehSah){
     sahZone=`<div class="callout warn no-print"><span class="ci">!</span>
       <span>${MONTHS[month]} belum lengkap — sahkan selepas semua hari ditanda.</span>
+      <button class="btn btn-sm" id="c8-fill">⚡ Isi Pantas</button>
       <button class="btn btn-sm btn-primary" id="c8-sah">Sahkan</button></div>`;
   }
   holder.innerHTML=`
@@ -1193,6 +1219,79 @@ async function renderC8(){
       td.onclick=()=>cycleCell(td);
     });
   }
+  const fillBtn=$('#c8-fill');
+  if(fillBtn) fillBtn.onclick=()=>{
+    const kini=new Date();
+    const bulanLepas=(year<kini.getFullYear())||(year===kini.getFullYear()&&month<kini.getMonth());
+    const hadSekolah=schoolDays(year,month)
+      .filter(dd=>bulanLepas || year<kini.getFullYear() ||
+        (year===kini.getFullYear()&&month<kini.getMonth()) ||
+        (year===kini.getFullYear()&&month===kini.getMonth()&&dd<=kini.getDate()));
+    const hariOpts=hadSekolah.map(dd=>`<option value="${dd}">${dd} ${MONTHS[month]}</option>`).join('');
+    openModal(`
+      <div class="modal-head"><h3>Isi Pantas Kehadiran</h3><div style="flex:1"></div>
+        <button class="icon-btn" onclick="closeModal()">${IC.x}</button></div>
+      <div class="modal-body">
+        <p style="margin:0 0 14px;color:var(--muted);font-size:13px">
+          Tanda <b>HADIR</b> untuk semua murid sekaligus — memudahkan pengisian rekod bulan lepas.
+          Hujung minggu, cuti umum dan hari hadapan dilangkau automatik.</p>
+        <div class="field"><label>Skop</label>
+          <select id="fl-skop">
+            <option value="bulan">Seluruh ${MONTHS[month]} (${hadSekolah.length} hari persekolahan)</option>
+            <option value="hari">Satu hari sahaja…</option>
+          </select></div>
+        <div class="field" id="fl-harifield" style="display:none"><label>Pilih hari</label>
+          <select id="fl-hari">${hariOpts}</select></div>
+        <label style="display:flex;align-items:center;gap:9px;font-size:13.5px;cursor:pointer">
+          <input type="checkbox" id="fl-kosong" checked style="width:auto">
+          <span>Isi <b>sel kosong sahaja</b> — jangan ganti tanda sedia ada</span></label>
+        <p style="color:var(--muted);font-size:12px;margin:10px 0 0;line-height:1.5">
+          Cadangan: tanda murid yang <b>tidak hadir</b> (✕) dahulu, kemudian guna fungsi ini
+          untuk mengisi bakinya sebagai hadir.</p>
+        ${isAdmin()?`<div style="border-top:1px solid var(--line);margin-top:16px;padding-top:14px">
+          <button class="btn btn-sm btn-danger" id="fl-clear">Kosongkan semua tanda bulan ini</button></div>`:''}
+      </div>
+      <div class="modal-foot"><button class="btn btn-ghost" onclick="closeModal()">Batal</button>
+        <button class="btn btn-primary" id="fl-go">Tanda Hadir</button></div>`);
+
+    $('#fl-skop').onchange=e=>{ $('#fl-harifield').style.display=e.target.value==='hari'?'':'none'; };
+
+    $('#fl-go').onclick=async()=>{
+      const skop=$('#fl-skop').value, kosongSahaja=$('#fl-kosong').checked;
+      const hari = skop==='hari' ? [+$('#fl-hari').value] : hadSekolah;
+      if(!hari.length){toast('Tiada hari persekolahan untuk diisi.','err');return;}
+      // Baca semula rekod terkini — guru mungkin menanda sel selepas halaman dimuat
+      const recNow=await DB.getAttendance(kelasId,year,month);
+      const patch={}; let bil=0;
+      roster.forEach(st=>{
+        const sedia=recNow[st.id]||{};
+        hari.forEach(dd=>{
+          if(kosongSahaja && sedia[dd]) return;
+          if(sedia[dd]==='H') return;
+          patch[st.id]=patch[st.id]||{}; patch[st.id][dd]='H'; bil++;
+        });
+      });
+      if(!bil){toast('Tiada sel untuk diisi — semua sudah ditanda.','info');closeModal();return;}
+      // confirmDialog menggantikan kandungan modal — jadi jangan rujuk butang lama selepas ini
+      const ok=await confirmDialog(`Tanda HADIR untuk ${bil} sel (${roster.length} murid × ${hari.length} hari)?`);
+      if(!ok)return;
+      toast('Menyimpan…','info');
+      try{
+        await DB.saveAttendanceMany(kelasId,year,month,patch);
+        DB.addLog('Isi pantas kehadiran',`${clsLabel(cls)} · ${MONTHS[month]} ${year} · ${bil} sel`);
+        toast(`${bil} sel ditanda hadir.`,'ok'); renderC8();
+      }catch(e){ toast(authErr(e),'err'); }
+    };
+
+    if($('#fl-clear')) $('#fl-clear').onclick=async()=>{
+      const ok=await confirmDialog(`Kosongkan SEMUA tanda kehadiran ${MONTHS[month]} ${year} untuk ${clsLabel(cls)}? Tindakan ini tidak boleh dibatalkan.`);
+      if(!ok)return;
+      await DB.clearAttendance(kelasId,year,month);
+      DB.addLog('Kosongkan kehadiran',`${clsLabel(cls)} · ${MONTHS[month]} ${year}`);
+      closeModal(); toast('Semua tanda bulan ini dikosongkan.','info'); renderC8();
+    };
+  };
+
   const sahBtn=$('#c8-sah');
   if(sahBtn) sahBtn.onclick=async()=>{
     const ok=await confirmDialog(`Sahkan kehadiran ${MONTHS[month]} ${year} untuk kelas ini? Selepas disahkan, data TIDAK BOLEH diubah lagi (hanya Admin boleh membukanya semula). Pastikan semua hari telah ditanda dengan betul.`);
