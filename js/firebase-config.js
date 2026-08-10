@@ -12,12 +12,13 @@ window.__SCHOOL_NAME__  = "SEKOLAH KEBANGSAAN BELUKAR";
 window.__SCHOOL_SHORT__ = "SK Belukar";
 
 const firebaseConfig = {
-  apiKey:            "GANTIKAN_API_KEY",
-  authDomain:        "GANTIKAN.firebaseapp.com",
-  projectId:         "GANTIKAN_PROJECT_ID",
-  storageBucket:     "GANTIKAN.appspot.com",
-  messagingSenderId: "GANTIKAN_SENDER_ID",
-  appId:             "GANTIKAN_APP_ID"
+  apiKey: "AIzaSyDBftDntxCYeeAUmCsfEsVbn1YxRRjHKbg",
+  authDomain: "rmt-sk-belukar.firebaseapp.com",
+  projectId: "rmt-sk-belukar",
+  storageBucket: "rmt-sk-belukar.firebasestorage.app",
+  messagingSenderId: "659453051327",
+  appId: "1:659453051327:web:1bcf73b28cc58f0ff8210a",
+  measurementId: "G-VRHJH7X958"
 };
 
 /* Jangan ubah di bawah ini */
