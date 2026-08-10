@@ -338,13 +338,22 @@ const DB = {
   async saveAttendanceMany(kelasId,year,month,patch){
     const key=`${kelasId}_${year}_${month}`;
     if(USE_FIREBASE){
-      await fbDB.collection('attendance').doc(key).set({records:patch},{merge:true});
+      // nilai null bermakna "padam sel"
+      const bersih={};
+      Object.entries(patch).forEach(([sid,hari])=>{
+        bersih[sid]={};
+        Object.entries(hari).forEach(([d2,v])=>{
+          bersih[sid][d2] = (v===null) ? firebase.firestore.FieldValue.delete() : v;
+        });
+      });
+      await fbDB.collection('attendance').doc(key).set({records:bersih},{merge:true});
       return;
     }
     DEMO.attendance[key]=DEMO.attendance[key]||{records:{}};
     const r=DEMO.attendance[key].records;
     Object.entries(patch).forEach(([sid,hari])=>{
-      r[sid]=r[sid]||{}; Object.assign(r[sid],hari);
+      r[sid]=r[sid]||{};
+      Object.entries(hari).forEach(([d2,v])=>{ if(v===null) delete r[sid][d2]; else r[sid][d2]=v; });
     });
     saveDemo(DEMO);
   },
@@ -1123,7 +1132,17 @@ async function renderC8(){
   for(let d=1;d<=nDays;d++) dayCells.push({d,we:isWeekend(year,month,d),hol:isHoliday(year,month,d)});
 
   // ---- header ----
-  const dayTh=dayCells.map(c=>`<th class="col-day ${c.we?'we':''} ${c.hol?'hol':''} ${c.d===hariIni?'today':''}">${c.d}</th>`).join('');
+  const kiniD=new Date();
+  const bulanLepas=(year<kiniD.getFullYear())||(year===kiniD.getFullYear()&&month<kiniD.getMonth());
+  const bolehEditKelas = isAdmin() || CURRENT.kelasId===kelasId || (cls&&cls.guruId===CURRENT.id)
+    || CURRENT.role==='Guru RMT';
+  const bolehTanda=dd=>!C8_STATE.locked && bolehEditKelas &&
+    (bulanLepas || (year===kiniD.getFullYear()&&month===kiniD.getMonth()&&dd<=kiniD.getDate()));
+  const dayTh=dayCells.map(c=>{
+    const aktif=!c.we && !c.hol && bolehTanda(c.d);
+    return `<th class="col-day ${c.we?'we':''} ${c.hol?'hol':''} ${c.d===hariIni?'today':''} ${aktif?'tapday':''}"
+      ${aktif?`data-tapday="${c.d}" title="Tekan untuk tanda semua murid HADIR pada ${c.d} ${MONTHS[month]}"`:''}>${c.d}</th>`;
+  }).join('');
   const bulanLabel=`${MONTHS[month]} ${year}`;
   const sub=$('#c8-sub'); if(sub)sub.textContent=`${clsLabel(cls)} · ${bulanLabel}`;
 
@@ -1172,7 +1191,6 @@ async function renderC8(){
   }else if(bolehSah){
     sahZone=`<div class="callout warn no-print"><span class="ci">!</span>
       <span>${MONTHS[month]} belum lengkap — sahkan selepas semua hari ditanda.</span>
-      <button class="btn btn-sm" id="c8-fill">⚡ Isi Pantas</button>
       <button class="btn btn-sm btn-primary" id="c8-sah">Sahkan</button></div>`;
   }
   holder.innerHTML=`
@@ -1219,78 +1237,33 @@ async function renderC8(){
       td.onclick=()=>cycleCell(td);
     });
   }
-  const fillBtn=$('#c8-fill');
-  if(fillBtn) fillBtn.onclick=()=>{
-    const kini=new Date();
-    const bulanLepas=(year<kini.getFullYear())||(year===kini.getFullYear()&&month<kini.getMonth());
-    const hadSekolah=schoolDays(year,month)
-      .filter(dd=>bulanLepas || year<kini.getFullYear() ||
-        (year===kini.getFullYear()&&month<kini.getMonth()) ||
-        (year===kini.getFullYear()&&month===kini.getMonth()&&dd<=kini.getDate()));
-    const hariOpts=hadSekolah.map(dd=>`<option value="${dd}">${dd} ${MONTHS[month]}</option>`).join('');
-    openModal(`
-      <div class="modal-head"><h3>Isi Pantas Kehadiran</h3><div style="flex:1"></div>
-        <button class="icon-btn" onclick="closeModal()">${IC.x}</button></div>
-      <div class="modal-body">
-        <p style="margin:0 0 14px;color:var(--muted);font-size:13px">
-          Tanda <b>HADIR</b> untuk semua murid sekaligus — memudahkan pengisian rekod bulan lepas.
-          Hujung minggu, cuti umum dan hari hadapan dilangkau automatik.</p>
-        <div class="field"><label>Skop</label>
-          <select id="fl-skop">
-            <option value="bulan">Seluruh ${MONTHS[month]} (${hadSekolah.length} hari persekolahan)</option>
-            <option value="hari">Satu hari sahaja…</option>
-          </select></div>
-        <div class="field" id="fl-harifield" style="display:none"><label>Pilih hari</label>
-          <select id="fl-hari">${hariOpts}</select></div>
-        <label style="display:flex;align-items:center;gap:9px;font-size:13.5px;cursor:pointer">
-          <input type="checkbox" id="fl-kosong" checked style="width:auto">
-          <span>Isi <b>sel kosong sahaja</b> — jangan ganti tanda sedia ada</span></label>
-        <p style="color:var(--muted);font-size:12px;margin:10px 0 0;line-height:1.5">
-          Cadangan: tanda murid yang <b>tidak hadir</b> (✕) dahulu, kemudian guna fungsi ini
-          untuk mengisi bakinya sebagai hadir.</p>
-        ${isAdmin()?`<div style="border-top:1px solid var(--line);margin-top:16px;padding-top:14px">
-          <button class="btn btn-sm btn-danger" id="fl-clear">Kosongkan semua tanda bulan ini</button></div>`:''}
-      </div>
-      <div class="modal-foot"><button class="btn btn-ghost" onclick="closeModal()">Batal</button>
-        <button class="btn btn-primary" id="fl-go">Tanda Hadir</button></div>`);
+  // Ketik tajuk hari → tanda semua murid HADIR untuk hari itu
+  $$('.c8 thead th[data-tapday]').forEach(th=>{
+    th.onclick=async()=>{
+      const dd=+th.dataset.tapday;
+      if(!roster.length){toast('Tiada murid dalam kelas ini.','err');return;}
+      const recNow=await DB.getAttendance(kelasId,year,month);   // data terkini
+      const kosong=[], semuaHadir=roster.every(st=>(recNow[st.id]||{})[dd]==='H');
+      roster.forEach(st=>{ if(!((recNow[st.id]||{})[dd])) kosong.push(st.id); });
 
-    $('#fl-skop').onchange=e=>{ $('#fl-harifield').style.display=e.target.value==='hari'?'':'none'; };
-
-    $('#fl-go').onclick=async()=>{
-      const skop=$('#fl-skop').value, kosongSahaja=$('#fl-kosong').checked;
-      const hari = skop==='hari' ? [+$('#fl-hari').value] : hadSekolah;
-      if(!hari.length){toast('Tiada hari persekolahan untuk diisi.','err');return;}
-      // Baca semula rekod terkini — guru mungkin menanda sel selepas halaman dimuat
-      const recNow=await DB.getAttendance(kelasId,year,month);
-      const patch={}; let bil=0;
-      roster.forEach(st=>{
-        const sedia=recNow[st.id]||{};
-        hari.forEach(dd=>{
-          if(kosongSahaja && sedia[dd]) return;
-          if(sedia[dd]==='H') return;
-          patch[st.id]=patch[st.id]||{}; patch[st.id][dd]='H'; bil++;
-        });
-      });
-      if(!bil){toast('Tiada sel untuk diisi — semua sudah ditanda.','info');closeModal();return;}
-      // confirmDialog menggantikan kandungan modal — jadi jangan rujuk butang lama selepas ini
-      const ok=await confirmDialog(`Tanda HADIR untuk ${bil} sel (${roster.length} murid × ${hari.length} hari)?`);
-      if(!ok)return;
-      toast('Menyimpan…','info');
+      let patch={}, mesej='';
+      if(kosong.length){
+        kosong.forEach(id=>{patch[id]={[dd]:'H'};});
+        mesej=`${kosong.length} murid ditanda hadir · ${dd} ${MONTHS[month]}`;
+      }else if(semuaHadir){
+        roster.forEach(st=>{patch[st.id]={[dd]:null};});          // ketik semula = kosongkan
+        mesej=`Tanda ${dd} ${MONTHS[month]} dikosongkan`;
+      }else{
+        toast(`Semua murid sudah ditanda untuk ${dd} ${MONTHS[month]}.`,'info'); return;
+      }
+      th.classList.add('tapping');
       try{
         await DB.saveAttendanceMany(kelasId,year,month,patch);
-        DB.addLog('Isi pantas kehadiran',`${clsLabel(cls)} · ${MONTHS[month]} ${year} · ${bil} sel`);
-        toast(`${bil} sel ditanda hadir.`,'ok'); renderC8();
-      }catch(e){ toast(authErr(e),'err'); }
+        DB.addLog('Tanda sekolum',`${clsLabel(cls)} · ${dd} ${MONTHS[month]} ${year}`);
+        toast(mesej,'ok'); renderC8();
+      }catch(e){ toast(authErr(e),'err'); th.classList.remove('tapping'); }
     };
-
-    if($('#fl-clear')) $('#fl-clear').onclick=async()=>{
-      const ok=await confirmDialog(`Kosongkan SEMUA tanda kehadiran ${MONTHS[month]} ${year} untuk ${clsLabel(cls)}? Tindakan ini tidak boleh dibatalkan.`);
-      if(!ok)return;
-      await DB.clearAttendance(kelasId,year,month);
-      DB.addLog('Kosongkan kehadiran',`${clsLabel(cls)} · ${MONTHS[month]} ${year}`);
-      closeModal(); toast('Semua tanda bulan ini dikosongkan.','info'); renderC8();
-    };
-  };
+  });
 
   const sahBtn=$('#c8-sah');
   if(sahBtn) sahBtn.onclick=async()=>{

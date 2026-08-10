@@ -998,3 +998,12 @@ h3.sect .sect-note{font-size:11.5px;font-weight:600;color:var(--muted);
 .nav-pill{background:var(--green-dark)}
 .nav-item.active{color:#fff}
 .nav-item.active svg{stroke-width:2.2}
+
+/* Tajuk hari boleh ditekan — tanda semua murid hadir sekali klik */
+table.c8 thead th.tapday{cursor:pointer;position:relative;transition:background .14s}
+table.c8 thead th.tapday:hover{background:var(--green);color:#fff}
+table.c8 thead th.tapday::after{content:"";position:absolute;left:50%;bottom:2px;
+  width:5px;height:5px;border-radius:50%;background:var(--green);transform:translateX(-50%);opacity:.55}
+table.c8 thead th.tapday:hover::after{background:#fff;opacity:1}
+table.c8 thead th.tapday:active{transform:scale(.94)}
+table.c8 thead th.tapping{background:var(--green);color:#fff}
