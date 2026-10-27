@@ -43,7 +43,7 @@ GitHub Pages (satu sahaja)
 
 ### C. Serahkan kepada sekolah
 1. Link sekolah: `https://USERNAME.github.io/REPO/?s=skseberang`
-2. Buka link → **Daftar Akaun Baharu** → pendaftar pertama = **Administrator**
+2. Buka link → **Daftar Akaun Baharu** → akaun baharu = **Guru Kelas**; pemilik projek sediakan admin pertama melalui Firebase Console
    (biasanya anda buat bersama Guru Besar / penyelaras semasa serahan).
 3. Admin sekolah isi **Tetapan Sekolah** (nama, logo, warna tema), tambah kelas,
    import murid (CSV), tambah guru. Siap.

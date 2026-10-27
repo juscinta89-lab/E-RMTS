@@ -12,6 +12,7 @@ service cloud.firestore {
     function isAdmin() {
       return isSignedIn()
         && exists(/databases/$(database)/documents/users/$(request.auth.token.email))
+        && profile().data.get('aktif', true) == true
         && profile().data.role in ['Administrator','Guru Besar','PK HEM'];
     }
 
@@ -27,8 +28,19 @@ service cloud.firestore {
     //   tukar peranan, dan padam mana-mana pengguna
     match /users/{email} {
       allow read:   if isSignedIn();
-      allow create: if isAdmin() || (isSignedIn() && request.auth.token.email == email);
-      allow update, delete: if isAdmin() || request.auth.token.email == email;
+      // Peranan dan kelas hanya boleh ditetapkan oleh admin sedia ada.
+      allow create: if isAdmin() || (isSignedIn()
+        && request.auth.token.email == email
+        && request.resource.data.keys().hasOnly(['nama','email','role','aktif','kelasId','jawatan'])
+        && request.resource.data.email == email
+        && request.resource.data.role == 'Guru Kelas'
+        && request.resource.data.jawatan == 'Guru Kelas'
+        && request.resource.data.aktif == true
+        && request.resource.data.kelasId == null);
+      allow update: if isAdmin() || (isSignedIn()
+        && request.auth.token.email == email
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nama','tel']));
+      allow delete: if isAdmin();
     }
 
     // classes & students — baca oleh pengguna log masuk; tulis oleh admin

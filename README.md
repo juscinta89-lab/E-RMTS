@@ -55,7 +55,7 @@ Sekarang ada menu **Daftar Akaun** dalam aplikasi:
 
 1. Buka aplikasi → di skrin log masuk, klik **Daftar Akaun Baharu**.
 2. Isi nama, emel, kata laluan (minimum 6 aksara) → **Daftar Akaun**.
-3. **Pendaftar pertama automatik menjadi Administrator.** Terus masuk ke app.
+3. Akaun baharu diberi peranan **Guru Kelas**. Admin sedia ada menetapkan kelas dan peranan. Untuk pemasangan baharu, pemilik projek perlu menyediakan profil admin melalui Firebase Console; klien tidak boleh menaikkan peranan sendiri.
 4. Guru/pengguna lain boleh:
    - daftar sendiri melalui menu **Daftar Akaun** (emel + kata laluan), atau
    - **Log masuk dengan Google** terus — kali pertama akan auto-daftar (tak perlu admin masukkan emel dahulu), atau

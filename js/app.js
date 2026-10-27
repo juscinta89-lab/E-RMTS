@@ -515,7 +515,7 @@ async function loadConfig(){
 }
 
 // Padankan pengguna Firebase dengan profil `users`. Jika belum wujud, AUTO-CIPTA
-// (cth log masuk Google kali pertama). Pendaftar pertama menjadi Administrator.
+// (cth log masuk Google kali pertama). Peranan admin ditetapkan oleh admin sedia ada.
 async function resolveProfile(user){
   const ref=fbDB.collection('users').doc(user.email);
   const doc=await ref.get();
@@ -524,24 +524,10 @@ async function resolveProfile(user){
     if(data.aktif===false){ await fbAuth.signOut(); throw new Error('Akaun anda dinyahaktifkan. Sila hubungi Administrator.'); }
     CURRENT={id:doc.id,...data};
   }else{
-    let first=true; try{ first=(await fbDB.collection('users').limit(1).get()).empty; }catch(e){ first=true; }
-    const role=first?'Administrator':'Guru Kelas';
+    const role='Guru Kelas';
     const data={nama:user.displayName||user.email,email:user.email,role,aktif:true,kelasId:null,jawatan:role};
     await ref.set(data);
     CURRENT={id:user.email,...data};
-  }
-  // Penyembuhan: jika sistem langsung TIADA admin (peranan terpadam/tersilap),
-  // naikkan pengguna ini supaya sistem tidak terkunci tanpa admin.
-  if(!['Administrator','Guru Besar','PK HEM'].includes(CURRENT.role)){
-    try{
-      const admins=await fbDB.collection('users')
-        .where('role','in',['Administrator','Guru Besar','PK HEM']).limit(1).get();
-      if(admins.empty){
-        await ref.set({role:'Administrator',jawatan:'Administrator'},{merge:true});
-        CURRENT.role='Administrator'; CURRENT.jawatan='Administrator';
-        toast('Tiada admin dikesan — akaun anda dinaikkan ke Administrator.','info');
-      }
-    }catch(e){}
   }
   sessionStorage.setItem(SESS_KEY,JSON.stringify(CURRENT));
 }
@@ -601,13 +587,11 @@ function authErr(e){
   return (e&&(m[e.code]||e.message))||'Ralat tidak diketahui.';
 }
 
-// Daftar akaun baharu. Pendaftar PERTAMA automatik jadi Administrator.
+// Akaun Firebase baharu tidak boleh menentukan peranan pentadbir sendiri.
 async function doRegister(nama,email,pass){
   if(USE_FIREBASE){
     const cred=await fbAuth.createUserWithEmailAndPassword(email,pass); // auto log masuk
-    let first=true;
-    try{ first=(await fbDB.collection('users').limit(1).get()).empty; }catch(e){ first=true; }
-    const role=first?'Administrator':'Guru Kelas';
+    const role='Guru Kelas';
     const data={nama,email,role,aktif:true,kelasId:null,jawatan:role};
     await fbDB.collection('users').doc(email).set(data);
     CURRENT={id:email,...data};
@@ -649,7 +633,7 @@ function renderAuth(mode){
       <div class="field"><label>Sahkan kata laluan</label><input id="rg-pass2" type="password"></div>
       <button class="btn btn-primary" id="rg-btn" style="width:100%">Daftar Akaun</button>
       <p style="color:var(--muted);font-size:12px;text-align:center;margin:12px 0 0">
-        Pendaftar pertama akan menjadi <b>Administrator</b>.</p>
+        Akaun baharu diberi peranan <b>Guru Kelas</b>. Hubungi pentadbir untuk penetapan kelas atau peranan lain.</p>
       <div class="or-sep"><span>sudah ada akaun?</span></div>
       <button class="btn btn-ghost" id="to-login" style="width:100%">Log Masuk</button>
     </div>`;
