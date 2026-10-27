@@ -1845,12 +1845,14 @@ async function printBorang(){
 /* ---------------------------------------------------------
    HALAMAN: Imbas QR Kehadiran
 --------------------------------------------------------- */
-const SCAN={stream:null,raf:0,active:false,count:0,cool:{},students:null,attCache:{},sahCache:{}};
+const SCAN={stream:null,raf:0,active:false,session:0,count:0,cool:{},students:null,attCache:{},sahCache:{}};
 
 function stopScan(){
+  SCAN.session++;
   SCAN.active=false; SCAN.wedge=false; clearTimeout(SCAN.wedgeT);
   if(SCAN.raf)cancelAnimationFrame(SCAN.raf);
   if(SCAN.stream){SCAN.stream.getTracks().forEach(t=>t.stop());SCAN.stream=null;}
+  const video=$('#sc-video'); if(video){video.pause();video.srcObject=null;}
   const b=$('#sc-start'); if(b){b.textContent='📷 Mula Imbas';b.classList.remove('btn-danger');}
 }
 
@@ -1876,7 +1878,7 @@ async function pageImbas(v){
       <p style="color:var(--muted);font-size:13px;margin:0 0 12px">
         Imbas kad QR murid — kehadiran <b>hari ini</b> terus ditanda ✓ dalam Borang C8.
         Murid yang tidak diimbas kekal kosong (guru tanda ✕ dalam C8 seperti biasa).</p>
-      <div class="scan-wrap"><video id="sc-video" playsinline muted></video>
+      <div class="scan-wrap"><video id="sc-video" autoplay playsinline webkit-playsinline muted></video>
         <div class="scan-frame"></div></div>
       <canvas id="sc-canvas" style="display:none"></canvas>
       <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">
@@ -1973,39 +1975,90 @@ function scanStatus(html,type){
 }
 
 async function startScan(){
-  const video=$('#sc-video');
-  try{
-    SCAN.stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
-  }catch(e){
-    scanStatus('Kamera tidak dapat diakses: '+esc(e.message)+'. Guna ruang taip ID di bawah.','err'); return;
+  if(SCAN.active)return;
+  const video=$('#sc-video'), canvas=$('#sc-canvas');
+  if(!video||!canvas)return;
+  if(!navigator.mediaDevices?.getUserMedia){
+    scanStatus('Kamera memerlukan HTTPS dan pelayar yang menyokong akses kamera. Buka pautan aplikasi dalam Safari.','err'); return;
   }
-  video.srcObject=SCAN.stream; await video.play();
+  const session=++SCAN.session;
+  const current=()=>SCAN.active&&SCAN.session===session;
   SCAN.active=true;
   const b=$('#sc-start'); b.textContent='⏹ Henti'; b.classList.add('btn-danger');
-  scanStatus('Kamera aktif — halakan ke kad QR murid.','');
-
-  let detector=null;
-  if('BarcodeDetector' in window){
-    try{ detector=new window.BarcodeDetector({formats:['qr_code']}); }catch(e){}
-  }
-  const canvas=$('#sc-canvas'), ctx=canvas.getContext('2d');
-  const loop=async()=>{
-    if(!SCAN.active)return;
-    try{
-      if(detector){
-        const codes=await detector.detect(video);
-        if(codes.length) handleScanText(codes[0].rawValue);
-      }else if(typeof jsQR!=='undefined' && video.videoWidth){
-        canvas.width=video.videoWidth; canvas.height=video.videoHeight;
-        ctx.drawImage(video,0,0);
-        const img=ctx.getImageData(0,0,canvas.width,canvas.height);
-        const code=jsQR(img.data,img.width,img.height,{inversionAttempts:'dontInvert'});
-        if(code&&code.data) handleScanText(code.data);
+  video.muted=true; video.defaultMuted=true; video.playsInline=true;
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{
+      facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}
+    }});
+    if(!current()){stream.getTracks().forEach(t=>t.stop());return;}
+    SCAN.stream=stream;
+    video.srcObject=stream;
+    await video.play();
+    if(!current())return;
+    let detector=null;
+    if('BarcodeDetector' in window){
+      try{
+        const formats=await window.BarcodeDetector.getSupportedFormats();
+        if(formats.includes('qr_code'))detector=new window.BarcodeDetector({formats:['qr_code']});
+      }catch(e){}
+    }
+    if(!current())return;
+    const ctx=canvas.getContext('2d',{willReadFrequently:true});
+    if(!detector&&(typeof jsQR==='undefined'||!ctx)){
+      throw new Error('Pembaca QR gagal dimuat. Muat semula aplikasi.');
+    }
+    scanStatus('Kamera aktif — halakan ke kad QR murid.','');
+    let last=0;
+    const loop=async time=>{
+      if(!current())return;
+      // Hadkan kerja CPU supaya pembaca JavaScript lancar pada iPhone.
+      if(time-last>=120&&video.readyState>=2&&video.videoWidth&&video.videoHeight){
+        last=time;
+        let raw=null;
+        if(detector){
+          try{
+            const codes=await detector.detect(video);
+            if(codes.length)raw=codes[0].rawValue;
+          }catch(e){
+            detector=null;
+            if(typeof jsQR==='undefined'||!ctx){
+              if(current()){stopScan();scanStatus('Pembaca QR gagal. Muat semula aplikasi.','err');}
+              return;
+            }
+          }
+        }
+        if(!current())return;
+        if(!detector&&typeof jsQR!=='undefined'&&ctx){
+          try{
+            const scale=Math.min(1,960/Math.max(video.videoWidth,video.videoHeight));
+            const w=Math.round(video.videoWidth*scale),h=Math.round(video.videoHeight*scale);
+            if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}
+            ctx.drawImage(video,0,0,w,h);
+            const img=ctx.getImageData(0,0,w,h);
+            const code=jsQR(img.data,w,h,{inversionAttempts:'attemptBoth'});
+            if(code?.data)raw=code.data;
+          }catch(e){
+            if(current()){stopScan();scanStatus('Gagal membaca imej kamera. Ketik Mula Imbas untuk cuba semula.','err');}
+            return;
+          }
+        }
+        if(raw&&current()){
+          try{await handleScanText(raw);}catch(e){
+            if(current())scanStatus('Gagal merekod imbasan: '+esc(e.message),'err');
+          }
+        }
       }
-    }catch(e){}
+      if(current())SCAN.raf=requestAnimationFrame(loop);
+    };
     SCAN.raf=requestAnimationFrame(loop);
-  };
-  loop();
+  }catch(e){
+    if(!current())return;
+    stopScan();
+    const message=e.name==='NotAllowedError'
+      ? 'Benarkan akses kamera dalam tetapan laman Safari, kemudian cuba semula.'
+      : 'Kamera tidak dapat dimulakan: '+esc(e.message);
+    scanStatus(message,'err');
+  }
 }
 
 async function handleScanText(raw){
