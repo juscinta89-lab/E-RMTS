@@ -261,6 +261,16 @@ const DB = {
     if(USE_FIREBASE){await fbDB.collection('settings').doc('school').set(o,{merge:true});return;}
     DEMO.school={...DEMO.school,...o}; saveDemo(DEMO);
   },
+  async saveReplacementDay(date,entry){
+    if(USE_FIREBASE){
+      const value=entry===null?firebase.firestore.FieldValue.delete():entry;
+      await fbDB.collection('settings').doc('school').set({replacementDays:{[date]:value}},{merge:true});
+    }else{
+      const days={...(DEMO.school.replacementDays||{})};
+      if(entry===null)delete days[date];else days[date]=entry;
+      DEMO.school.replacementDays=days;saveDemo(DEMO);
+    }
+  },
   /* KELAS */
   async getClasses(){
     if(USE_FIREBASE){const q=await fbDB.collection('classes').get();return q.docs.map(d=>({id:d.id,...d.data()}));}
@@ -502,11 +512,12 @@ const bolehUrusMurid = st => !!(seesAllClasses() || (CURRENT && st && st.kelasId
 // Konfigurasi kalendar global (hari cuti mingguan + cuti/kelepasan am)
 // restDays: nombor hari (0=Ahad,1=Isnin,...,6=Sabtu) yang BUKAN hari persekolahan.
 // Lalai [0,6] = Sabtu & Ahad (Kumpulan B). Kumpulan A = [5,6] (Jumaat & Sabtu).
-let APP_CFG={restDays:[0,6],holidays:[]};
+let APP_CFG={restDays:[0,6],holidays:[],replacementDays:{}};
 async function loadConfig(){
   try{
     const s=await DB.getSchool();
-    APP_CFG.restDays = Array.isArray(s.restDays)&&s.restDays.length? s.restDays : [0,6];
+    APP_CFG.restDays = Array.isArray(s.restDays)? s.restDays : [0,6];
+    APP_CFG.replacementDays = s.replacementDays || {};
     APP_CFG.sesi = s.sesi || new Date().getFullYear();
     if(s.nama){ simpanNamaSekolah(s.nama); terapkanIdentiti(); }
     applyTheme(s.themeColor||'#7FB89A');
@@ -701,6 +712,7 @@ const NAV=[
   {id:'rumusan',label:'Rumusan Kehadiran',short:'Rumusan',icon:'chart',all:true,p:1},
   {id:'kelas',label:'Maklumat Kelas',short:'Kelas',icon:'cls',admin:true},
   {id:'guru',label:'Guru & Pengguna',short:'Guru',icon:'teacher',admin:true},
+  {id:'gantian',label:'Sekolah Ganti',short:'Ganti',icon:'cal',admin:true},
   {id:'kalendar',label:'Hari & Cuti',short:'Cuti',icon:'cal',admin:true},
   {id:'tetapan',label:'Tetapan Sekolah',short:'Tetapan',icon:'gear',admin:true},
 ];
@@ -839,15 +851,29 @@ window.addEventListener('resize',()=>{
   moveLiquid(id);
 });
 
-function route(){
+let routeVersion=0;
+async function route(){
+  const version=++routeVersion;
   if(typeof stopScan==='function') stopScan(); // matikan kamera bila tukar halaman
   if(!CURRENT){renderAuth();return;}
   const page=(location.hash||'#dashboard').slice(1);
+  if(NAV.some(n=>n.id===page&&n.admin)&&!isAdmin()){
+    location.hash='#dashboard';toast('Menu ini untuk pentadbir sahaja.','err');return;
+  }
   setActiveNav(page);
   const v=$('#view'); if(!v)return;
   v.innerHTML=skeleton(5);
-  ({dashboard:pageDashboard,kehadiran:pageKehadiran,murid:pageMurid,
-    kelas:pageKelas,guru:pageGuru,kalendar:pageKalendar,borang:pageBorang,rumusan:pageRumusan,imbas:pageImbas,tetapan:pageTetapan}[page]||pageDashboard)(v);
+  try{
+    // Muat tetapan terkini apabila guru beralih menu selepas admin mengubah kalendar.
+    const [school,holidays]=await Promise.all([DB.getSchool(),DB.listHolidays()]);
+    if(version!==routeVersion)return;
+    APP_CFG.restDays=Array.isArray(school.restDays)?school.restDays:[0,6];
+    APP_CFG.replacementDays=school.replacementDays||{};APP_CFG.holidays=holidays;
+    await ({dashboard:pageDashboard,kehadiran:pageKehadiran,murid:pageMurid,
+      kelas:pageKelas,guru:pageGuru,gantian:pageGantian,kalendar:pageKalendar,borang:pageBorang,rumusan:pageRumusan,imbas:pageImbas,tetapan:pageTetapan}[page]||pageDashboard)(v);
+  }catch(error){
+    if(version===routeVersion){v.innerHTML=emptyState('Gagal memuatkan halaman. Cuba buka menu ini semula.');toast(authErr(error),'err');}
+  }
 }
 window.addEventListener('hashchange',route);
 
@@ -1008,12 +1034,21 @@ async function buildMonthlyChart(classes,students,year){
    7. Fungsi kalendar (hari sekolah / hujung minggu / cuti)
 --------------------------------------------------------- */
 function daysInMonth(y,m){return new Date(y,m+1,0).getDate();}
-function isWeekend(y,m,day){ return APP_CFG.restDays.includes(new Date(y,m,day).getDay()); } // hari cuti mingguan ikut tetapan
+function calendarDate(y,m,day){return `${y}-${String(m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;}
+function validCalendarDate(value){
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(value))return false;
+  const [y,m,d]=value.split('-').map(Number),date=new Date(y,m-1,d);
+  return date.getFullYear()===y&&date.getMonth()===m-1&&date.getDate()===d;
+}
+function replacementDay(y,m,day){return (APP_CFG.replacementDays||{})[calendarDate(y,m,day)]||null;}
+function isWeekend(y,m,day){ return !replacementDay(y,m,day)&&APP_CFG.restDays.includes(new Date(y,m,day).getDay()); } // hari cuti mingguan ikut tetapan
 function isHoliday(y,m,day){
+  if(replacementDay(y,m,day))return false;
   const ds=`${y}-${String(m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
   return (APP_CFG.holidays||[]).some(h=>h.date===ds);
 }
 function holidayName(y,m,day){
+  const replacement=replacementDay(y,m,day);if(replacement)return 'Sekolah ganti: '+replacement.nama;
   const ds=`${y}-${String(m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
   const h=(APP_CFG.holidays||[]).find(x=>x.date===ds); return h?h.nama:'';
 }
@@ -1059,6 +1094,7 @@ async function pageKehadiran(v){
       <span class="chip r"><i></i> Tidak hadir</span>
       <span class="chip a"><i></i> Cuti mingguan</span>
       <span class="chip b"><i></i> Cuti umum</span>
+      <span class="chip">* Sekolah ganti (dikira sebagai hari sekolah)</span>
     </div>
     <p class="no-print" style="color:var(--muted);font-size:12.5px;margin-top:10px">
       Ketik sel untuk kitar kosong → ✓ → ✕. Auto simpan.</p>`;
@@ -1097,6 +1133,7 @@ async function pageKehadiran(v){
 }
 
 async function renderC8(){
+  const renderVersion=(C8_STATE.renderVersion||0)+1;C8_STATE.renderVersion=renderVersion;
   const holder=$('#c8-holder'); if(!holder)return;
   holder.innerHTML=skeleton(6);
   const {kelasId,year,month}=C8_STATE;
@@ -1105,10 +1142,12 @@ async function renderC8(){
   const roster=await rosterStudents(kelasId,year,month);
   const rec=await DB.getAttendance(kelasId,year,month);
   const sahInfo=await DB.getSah(kelasId,year,month);
-  C8_STATE.locked=!!sahInfo;
+
   // rekod bulan lepas (untuk kolum "BULAN LEPAS")
   const pm = month===0?11:month-1, py = month===0?year-1:year;
   const recPrev=await DB.getAttendance(kelasId,py,pm);
+  if(renderVersion!==C8_STATE.renderVersion||!holder.isConnected)return;
+  C8_STATE.locked=!!sahInfo;
 
   const nDays=daysInMonth(year,month);
   const kini=new Date(); const hariIni=(kini.getFullYear()===year&&kini.getMonth()===month)?kini.getDate():0;
@@ -1124,8 +1163,8 @@ async function renderC8(){
     (bulanLepas || (year===kiniD.getFullYear()&&month===kiniD.getMonth()&&dd<=kiniD.getDate()));
   const dayTh=dayCells.map(c=>{
     const aktif=!c.we && !c.hol && bolehTanda(c.d);
-    return `<th class="col-day ${c.we?'we':''} ${c.hol?'hol':''} ${c.d===hariIni?'today':''} ${aktif?'tapday':''}"
-      ${aktif?`data-tapday="${c.d}" title="Tekan untuk tanda semua murid HADIR pada ${c.d} ${MONTHS[month]}"`:''}>${c.d}</th>`;
+    return `<th class="col-day ${replacementDay(year,month,c.d)?'replacement-day':''} ${c.we?'we':''} ${c.hol?'hol':''} ${c.d===hariIni?'today':''} ${aktif?'tapday':''}"
+      ${aktif?`data-tapday="${c.d}"`:''} title="${esc(replacementDay(year,month,c.d)?holidayName(year,month,c.d):'Tekan untuk tanda semua murid hadir')}">${c.d}${replacementDay(year,month,c.d)?'*':''}</th>`;
   }).join('');
   const bulanLabel=`${MONTHS[month]} ${year}`;
   const sub=$('#c8-sub'); if(sub)sub.textContent=`${clsLabel(cls)} · ${bulanLabel}`;
@@ -1164,7 +1203,7 @@ async function renderC8(){
   const footHadir=dayCells.map(c=>`<td class="col-day ${c.we?'we':''} ${c.hol?'hol':''}" data-foot="hadir" data-day="${c.d}"></td>`).join('');
   const footShould=dayCells.map(c=>`<td class="col-day ${c.we?'we':''} ${c.hol?'hol':''}" data-foot="should" data-day="${c.d}"></td>`).join('');
 
-  const bolehSah = isAdmin() || CURRENT.kelasId===kelasId || cls.guruId===CURRENT.id;
+  const bolehSah = isAdmin() || CURRENT.kelasId===kelasId || (cls&&cls.guruId===CURRENT.id);
   let sahZone='';
   if(sahInfo){
     const tkh=new Date(sahInfo.tarikh);
@@ -1812,6 +1851,7 @@ async function printBorang(){
       <b>KELAS</b> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: ${esc(clsLabel(cls).toUpperCase())} &nbsp;&nbsp;&nbsp; <b>TAHUN:</b> ${year}
     </div>
     ${clone.outerHTML}
+    <p style="font-size:10px">* Sekolah ganti — dikira sebagai hari persekolahan.</p>
     <div class="sign">
       <div class="s">DISEDIAKAN OLEH<div class="line">${esc(school.penyelaras&&school.penyelaras!=='—'?school.penyelaras:'……………………………………')}<br>PENYELARAS RMT</div></div>
       <div class="s">DISAHKAN OLEH<div class="line">${esc(school.pkhem&&school.pkhem!=='—'?school.pkhem:'……………………………………')}<br>GPK HEM</div></div>
@@ -2143,7 +2183,7 @@ async function c8SectionHTML(school,users,cls,year,month,program='RMT'){
   const kini=new Date(); const hariIni=(kini.getFullYear()===year&&kini.getMonth()===month)?kini.getDate():0;
   const dayCells=[];
   for(let d2=1;d2<=nDays;d2++)dayCells.push({d:d2,off:isWeekend(year,month,d2)||isHoliday(year,month,d2)});
-  const dayTh=dayCells.map(c=>`<th class="${c.off?'we':''}">${c.d}</th>`).join('');
+  const dayTh=dayCells.map(c=>`<th class="${c.off?'we':''}">${c.d}${replacementDay(year,month,c.d)?'*':''}</th>`).join('');
   let body=''; const footH={},footX={};
   roster.forEach((st,i)=>{
     const sr=rec[st.id]||{}; let h=0,x=0;
@@ -2177,6 +2217,7 @@ async function c8SectionHTML(school,users,cls,year,month,program='RMT'){
       <tr>${dayTh}<th>BULAN<br>SEMASA</th><th>BULAN<br>LEPAS</th><th>JUMLAH<br>SEMUA</th></tr></thead>
     <tbody>${body}</tbody>
     <tfoot>${foot(footX,'JUMLAH MURID TIDAK HADIR')}${foot(footH,'JUMLAH MURID HADIR')}${foot(null,'JUMLAH KEHADIRAN SEPATUTNYA')}</tfoot></table>
+    <p style="font-size:10px">* Sekolah ganti — dikira sebagai hari persekolahan.</p>
     <div class="sign"><div class="s">Disediakan oleh:<div class="line">( ${esc(guru?guru.nama:'……………………………………')} )<br>Guru Kelas</div></div>
       <div class="s">Disahkan oleh:<div class="line">( ${esc(school.gb&&school.gb!=='—'?school.gb:'……………………………………')} )<br>Guru Besar</div></div></div>
   </div>`;
@@ -2283,6 +2324,7 @@ async function printC8(program='RMT'){
       ${sahP?`<div><b>DISAHKAN:</b> ${esc(sahP.olehNama)} · ${new Date(sahP.tarikh).toLocaleDateString('ms-MY')}</div>`:''}
     </div>
     ${clone.outerHTML}
+    <p style="font-size:10px">* Sekolah ganti — dikira sebagai hari persekolahan.</p>
     <div class="sign">
       <div class="s">Disediakan oleh:
         <div class="line">( ${esc(guru?guru.nama:'……………………………………')} )<br>Guru Kelas</div></div>
@@ -2312,6 +2354,7 @@ function updateRowTotals(sid){
   row.querySelectorAll(`td.day[data-sid="${sid}"]`).forEach(td=>{
     if(td.classList.contains('present'))hadir++; if(td.classList.contains('absent'))absS++;
   });
+  const sub=row.querySelector('.nsub');if(sub)sub.textContent=hadir+' hari hadir';
   const hCell=row.querySelector('[data-role="hadir"]'); if(hCell)hCell.textContent=hadir;
   const aCell=row.querySelector('[data-role="absS"]'); if(aCell)aCell.textContent=absS;
   const allCell=row.querySelector('[data-role="absAll"]');
@@ -2319,7 +2362,6 @@ function updateRowTotals(sid){
   if(allCell)allCell.textContent=absS+lepas;
 }
 function recalcFooter(){
-  const dayNums=[...$$('.c8 thead th.col-day')].map(th=>+th.textContent);
   // active roster count utk "sepatutnya"
   const rosterRows=$$('.c8 tbody tr').filter(tr=>tr.querySelector('td.day'));
   $$('.c8 tfoot td[data-foot]').forEach(td=>{
@@ -2328,12 +2370,11 @@ function recalcFooter(){
       const c=tr.querySelector(`td.day[data-day="${day}"]`); if(!c)return;
       if(c.classList.contains('present'))hadir++; if(c.classList.contains('absent'))tidak++;
     });
-    const isSchool=!$(`.c8 thead th.col-day:nth-child(${1})`); // fallback
     if(role==='hadir')td.textContent=hadir||'';
     if(role==='tidak')td.textContent=tidak||'';
     if(role==='should'){ const total=rosterRows.length;
       // hanya papar utk hari persekolahan
-      const th=[...$$('.c8 thead th.col-day')].find(t=>+t.textContent===day);
+      const th=[...$$('.c8 thead th.col-day')].find(t=>parseInt(t.textContent,10)===day);
       td.textContent=(th&&!th.classList.contains('we')&&!th.classList.contains('hol'))?total:'';
     }
   });
@@ -2811,9 +2852,86 @@ async function pageTetapan(v){
 /* ---------------------------------------------------------
    12b. HALAMAN: Hari Persekolahan & Cuti
 --------------------------------------------------------- */
+async function pageGantian(v){
+  if(!isAdmin()){toast('Tetapan sekolah ganti untuk pentadbir sahaja.','err');return;}
+  const school=await DB.getSchool();
+  if(!onPage('gantian'))return;
+  APP_CFG.replacementDays=school.replacementDays||{};
+  const entries=Object.entries(APP_CFG.replacementDays).sort(([a],[b])=>b.localeCompare(a));
+  const rows=entries.map(([date,entry])=>`<tr>
+    <td style="white-space:nowrap"><b>${esc(date)}</b><br><small>${new Date(date+'T12:00:00').toLocaleDateString('ms-MY',{weekday:'long'})}</small></td>
+    <td>${esc(entry.nama)}${entry.replaces?`<br><small>Menggantikan ${esc(entry.replaces)}</small>`:''}</td>
+    <td><button class="btn btn-sm" data-edit-replacement="${esc(date)}">Edit</button>
+      <button class="btn btn-sm btn-danger" data-delete-replacement="${esc(date)}">Padam</button></td></tr>`).join('');
+  v.innerHTML=`
+    <div class="page-head"><div><h2>Sekolah Ganti</h2><p class="sub">Urus hari persekolahan tambahan dan gantian.</p></div></div>
+    <div class="callout no-print"><span class="ci">ℹ</span><span>
+      Tarikh sekolah ganti mengatasi cuti mingguan dan cuti yang direkod. Tarikh ini boleh ditanda dalam C8,
+      diimbas dengan QR dan dikira dalam jumlah hari sekolah, laporan serta cetakan.
+      Tetapan ini terpakai kepada <b>semua kelas</b>.</span></div>
+    <div class="card" style="max-width:760px">
+      <h3 id="g-form-title">Tambah sekolah ganti</h3>
+      <form id="g-form">
+        <div class="grid-2">
+          <div class="field"><label for="g-date">Tarikh sekolah ganti</label><input type="date" id="g-date" required></div>
+          <div class="field"><label for="g-name">Nama / catatan</label><input id="g-name" maxlength="160" required placeholder="cth: Sekolah ganti cuti perayaan"></div>
+          <div class="field"><label for="g-replaces">Menggantikan tarikh (pilihan)</label><input type="date" id="g-replaces"></div>
+        </div>
+        <p style="color:var(--muted);font-size:13px">Tarikh yang diganti ialah rujukan sahaja. Jika tarikh asal bercuti, rekodkannya dalam <a href="#kalendar">Hari &amp; Cuti</a>.
+          Rekod kehadiran lama dikekalkan. Jika bulan telah disahkan, buka semula pengesahan C8 sebelum membetulkan kehadiran.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-primary" id="g-save" type="submit">Simpan sekolah ganti</button>
+          <button class="btn" id="g-cancel" type="button" hidden>Batal edit</button></div>
+        <div id="g-status" role="status" aria-live="polite" style="margin-top:10px"></div>
+      </form>
+    </div>
+    <div class="card" style="max-width:760px;margin-top:16px">
+      <h3>Senarai sekolah ganti <span class="badge">${entries.length}</span></h3>
+      <div class="tbl-wrap"><table class="data"><thead><tr><th>Tarikh</th><th>Catatan</th><th>Tindakan</th></tr></thead>
+        <tbody>${rows||'<tr><td colspan="3">Belum ada sekolah ganti. Tambah tarikh di atas.</td></tr>'}</tbody></table></div>
+    </div>`;
+  let editing=null;
+  $('#g-cancel').onclick=()=>pageGantian(v);
+  $$('[data-edit-replacement]').forEach(button=>button.onclick=()=>{
+    editing=button.dataset.editReplacement;
+    const entry=APP_CFG.replacementDays[editing];
+    $('#g-date').value=editing;$('#g-date').disabled=true;
+    $('#g-name').value=entry.nama;$('#g-replaces').value=entry.replaces||'';
+    $('#g-form-title').textContent='Edit sekolah ganti';$('#g-cancel').hidden=false;
+    $('#g-name').focus();
+  });
+  $('#g-form').onsubmit=async event=>{
+    event.preventDefault();
+    const date=$('#g-date').value,nama=$('#g-name').value.trim(),replaces=$('#g-replaces').value;
+    const status=$('#g-status'),button=$('#g-save');
+    if(!validCalendarDate(date)||!nama||(replaces&&!validCalendarDate(replaces))){
+      status.textContent='Sila isi tarikh yang sah dan nama sekolah ganti.';return;
+    }
+    if(replaces===date){status.textContent='Tarikh sekolah ganti dan tarikh yang diganti mesti berbeza.';return;}
+    if(!editing&&APP_CFG.replacementDays[date]){status.textContent='Tarikh ini sudah wujud. Gunakan butang Edit dalam senarai.';return;}
+    button.disabled=true;status.textContent='Menyimpan…';
+    try{
+      await DB.saveReplacementDay(date,{nama,replaces});
+      APP_CFG.replacementDays[date]={nama,replaces};
+      DB.addLog(editing?'Edit sekolah ganti':'Tambah sekolah ganti',date+' · '+nama);
+      toast('Sekolah ganti disimpan. Semak kehadiran C8 bagi tarikh ini.','ok');
+      if(onPage('gantian'))await pageGantian(v);
+    }catch(error){status.textContent='Gagal menyimpan: '+authErr(error);button.disabled=false;}
+  };
+  $$('[data-delete-replacement]').forEach(button=>button.onclick=async()=>{
+    const date=button.dataset.deleteReplacement;
+    if(!await confirmDialog('Padam sekolah ganti '+date+'? Tarikh ini akan kembali mengikut tetapan cuti biasa. Rekod kehadiran tidak dipadam.'))return;
+    button.disabled=true;
+    try{
+      await DB.saveReplacementDay(date,null);delete APP_CFG.replacementDays[date];
+      DB.addLog('Padam sekolah ganti',date);toast('Tetapan sekolah ganti dipadam.','ok');
+      if(onPage('gantian'))await pageGantian(v);
+    }catch(error){toast('Gagal memadam: '+authErr(error),'err');button.disabled=false;}
+  });
+}
+
 async function pageKalendar(v){
   const s=await DB.getSchool();
-  let rest = Array.isArray(s.restDays)&&s.restDays.length ? [...s.restDays] : [0,6];
+  let rest = Array.isArray(s.restDays) ? [...s.restDays] : [0,6];
   const holidays=(await DB.listHolidays()).sort((a,b)=>String(a.date).localeCompare(String(b.date)));
   const dnames=['Ahad','Isnin','Selasa','Rabu','Khamis','Jumaat','Sabtu'];
   const sorted=[...rest].sort((a,b)=>a-b);
@@ -2832,7 +2950,7 @@ async function pageKalendar(v){
   if(!onPage('kalendar'))return; // halaman lain sudah dibuka — jangan tindih
 
   v.innerHTML=`
-    <div class="page-head"><h2>Hari Persekolahan &amp; Cuti</h2></div>
+    <div class="page-head"><h2>Hari Persekolahan &amp; Cuti</h2><a class="btn btn-primary" href="#gantian">Sekolah Ganti</a></div>
 
     <div class="card" style="max-width:640px;margin-bottom:16px">
       <h3 style="margin:0 0 4px">Hari cuti mingguan</h3>
@@ -2891,7 +3009,7 @@ async function pageKalendar(v){
     if(sel) document.querySelectorAll('.rd').forEach(c=>{c.checked=sel.includes(+c.value);}); };
   document.querySelectorAll('.rd').forEach(c=>c.onchange=()=>{$('#k-preset').value='C';});
   $('#k-save-days').onclick=async()=>{ const rd=readRest();
-    await DB.saveSchool({restDays:rd}); APP_CFG.restDays=rd.length?rd:[0,6];
+    await DB.saveSchool({restDays:rd}); APP_CFG.restDays=rd;
     toast('Hari persekolahan disimpan','ok'); };
   if($('#kk-load')) $('#kk-load').onclick=async()=>{
     const tahun=+$('#kk-tahun').value, kump=$('#kk-kump').value, umum=$('#kk-umum').checked;
@@ -2914,6 +3032,8 @@ async function pageKalendar(v){
 
   $('#k-add').onclick=async()=>{ const date=$('#k-date').value, nama=$('#k-name').value.trim();
     if(!date||!nama){toast('Isi tarikh & nama cuti','err');return;}
+    if(!validCalendarDate(date)){toast('Tarikh cuti tidak sah.','err');return;}
+    if(APP_CFG.holidays.some(h=>h.date===date)){toast('Cuti untuk tarikh ini sudah wujud.','err');return;}
     await DB.addHoliday({date,nama}); APP_CFG.holidays=await DB.listHolidays();
     toast('Cuti ditambah','ok'); pageKalendar(v); };
   document.querySelectorAll('#k-hol [data-del]').forEach(b=>b.onclick=async()=>{
@@ -2963,6 +3083,9 @@ const CSV_TEMPLATE='nama,mykid,jantina,tahun,kelas,mula,tamat\n'+
 window.closeModal=closeModal;
 (async function init(){
   terapkanIdentiti();
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.register('./service-worker.js').catch(()=>{});
+  }
   // Firebase: tangani hasil redirect Google (jika popup disekat tadi)
   if(USE_FIREBASE){
     try{
@@ -2970,7 +3093,7 @@ window.closeModal=closeModal;
       if(rr && rr.user){ await resolveProfile(rr.user); enterApp(); return; }
     }catch(e){ toast(e.message,'err'); }
   }
-  if(restoreSession()){ enterApp(); return; }
+  if(!USE_FIREBASE&&restoreSession()){ enterApp(); return; }
   if(USE_FIREBASE){
     fbAuth.onAuthStateChanged(async user=>{
       if(user && !CURRENT){ try{ await resolveProfile(user); enterApp(); }catch(e){ renderAuth(); } }
@@ -2978,8 +3101,4 @@ window.closeModal=closeModal;
   }
   renderAuth();
 
-  // PWA service worker
-  if('serviceWorker' in navigator){
-    navigator.serviceWorker.register('./service-worker.js').catch(()=>{});
-  }
 })();

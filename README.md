@@ -140,3 +140,12 @@ activity_logs/{id}     → log aktiviti
 ---
 
 Ada apa-apa nak tambah/ubah, bagitau je.
+
+
+## Sekolah ganti
+
+Pentadbir membuka menu **Sekolah Ganti** (juga tersedia melalui **Hari & Cuti**), mengisi tarikh, catatan dan tarikh asal yang diganti jika diperlukan. Tarikh gantian terpakai kepada semua kelas dan mengatasi cuti mingguan/kelepasan am. Tarikh asal ialah rujukan sahaja; tambah cutinya dalam Hari & Cuti jika perlu.
+
+Tarikh gantian ditanda `*` dalam C8 dan cetakan. Guru boleh melengkapkan kehadiran bagi tarikh lepas; bulan yang disahkan perlu dibuka semula oleh admin dahulu. Penambahan tetapan tidak mengisi kehadiran secara automatik. Pemadaman tetapan tidak memadam rekod kehadiran. Pengguna yang sedang membuka aplikasi perlu beralih menu atau muat semula untuk mengambil tetapan terkini.
+
+Ujian kalendar: `node --test tests/calendar.test.cjs`.
