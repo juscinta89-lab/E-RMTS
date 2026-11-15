@@ -1,0 +1,112 @@
+/* Ruang kerja e-RMT: native system typography, quiet surfaces, clear hierarchy. */
+@media screen {
+:root{--font-display:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;--font-body:var(--font-display);--bg:#f5f5f7;--card:#fff;--ink:#1d1d1f;--muted:#64646b;--line:#e4e5e9;--radius:20px;--radius-sm:12px;--shadow:0 4px 24px #18243306;--blue:#0071e3;--blue-soft:#edf5ff;--header-h:68px}
+[data-theme="dark"]{--bg:#151517;--card:#202023;--ink:#f5f5f7;--muted:#aaaab1;--line:#35353b;--blue:#65adff;--blue-soft:#182e46;--shadow:0 4px 24px #0002}
+body{font-family:var(--font-body);letter-spacing:-.015em}
+h1,h2,h3{font-family:var(--font-body);text-transform:none;letter-spacing:-.04em;line-height:1.2}
+.topbar{background:color-mix(in srgb,var(--card) 85%,transparent);color:var(--ink);backdrop-filter:blur(24px) saturate(160%);-webkit-backdrop-filter:blur(24px) saturate(160%);box-shadow:none;border-bottom:1px solid var(--line);padding:0 26px}
+.topbar .brand{font-family:var(--font-body);text-transform:none;letter-spacing:-.04em;font-size:21px;font-weight:700}
+.topbar .bsub{font-size:12px;font-weight:500;letter-spacing:0;color:var(--muted)}
+.topbar .icon-btn{color:var(--muted);width:40px;height:40px;justify-content:center}
+.topbar .icon-btn:hover{background:var(--bg)}
+.user-chip{background:var(--bg);font-size:12px;font-weight:500;padding:8px 12px}
+.layout{grid-template-columns:240px minmax(0,1fr)}
+.sidebar{background:color-mix(in srgb,var(--bg) 80%,var(--card));padding:26px 14px;border-color:var(--line)}
+.nav-item{font-family:var(--font-body);text-transform:none;letter-spacing:-.01em;font-size:13px;font-weight:500;padding:12px;margin-bottom:5px;border-radius:10px}
+.nav-item svg{width:19px;height:19px}
+.sidebar .nav-item.active{color:var(--green-dark);background:var(--green-soft);font-weight:650}
+.sidebar .nav-pill{display:none}
+.sidebar .nav-sep{margin:22px 10px}
+.content{padding:32px 36px 70px;min-width:0}
+.page-head{margin-bottom:20px;padding:0 0 8px}
+.page-head h2{font-size:32px;font-weight:700}
+.page-head .sub{margin-top:7px;font-size:13px;color:var(--muted)}
+.btn{font-family:var(--font-body);text-transform:none;letter-spacing:-.01em;font-size:13px;font-weight:600;min-height:40px;padding:10px 16px;border-radius:11px;box-shadow:none}
+.btn-primary,.btn-blue{box-shadow:0 1px 2px #0001}
+.btn-ghost{background:var(--card)}
+.btn:hover{filter:brightness(.97);transform:none}
+.field label,.c8-toolbar .field label,.stat .lbl,.lbl{font-family:var(--font-body);text-transform:none;letter-spacing:0;font-size:12px;font-weight:500}
+input,select,textarea{font-family:var(--font-body);font-size:14px;border-radius:10px;background:var(--bg);border-color:transparent;padding:11px 13px}
+input:hover,select:hover,textarea:hover{border-color:var(--line)}
+input:focus,select:focus,textarea:focus{background:var(--card)}
+.c8-toolbar{border:1px solid var(--line);border-radius:18px;padding:20px;box-shadow:0 2px 8px #00000002;gap:22px}
+.review-tools{margin:24px 0;gap:28px}
+.review-tools label{font-weight:500;color:var(--muted)}
+.review-tools input{border-radius:12px;background:var(--card);font-size:14px;padding:12px 14px}
+.review-help{font-size:12px;line-height:1.6}
+.review-help b{font-weight:600;font-size:13px}
+.review-summary{gap:16px;margin:20px 0 24px}
+.review-summary>div{border:1px solid var(--line);border-radius:18px;padding:20px 22px;box-shadow:var(--shadow)}
+.review-summary strong{font-weight:600;font-size:32px;letter-spacing:-.05em;line-height:1.2;margin-top:12px}
+.review-summary>div:nth-child(2) strong{color:var(--green-dark)}
+.review-summary>div:nth-child(3) strong{color:var(--danger)}
+.review-summary span{font-size:12px;font-weight:500}
+.callout{border-radius:13px;font-size:13px;line-height:1.6;padding:14px 18px}
+.c8-scroll{border-radius:16px;box-shadow:var(--shadow)}
+table.c8{font-size:12px;font-variant-numeric:tabular-nums}
+table.c8 thead th{background:var(--bg);color:var(--muted);font-size:10px;font-weight:600;padding:9px 4px;border-color:var(--line)}
+.c8-title{background:var(--card)!important;color:var(--ink);font-family:var(--font-body);font-size:12px;font-weight:600;letter-spacing:0;padding:14px!important}
+.c8 .col-nama{min-width:220px;padding:0 14px!important}
+.c8 td.day{font-size:15px;min-width:30px;height:46px}
+.c8 td.name{font-size:12px;font-weight:500}
+.c8 .nsub{font-size:10px;color:var(--muted);font-weight:400;margin-top:4px}
+.c8 .col-abs{min-width:72px}
+.c8 td[data-role="absAll"]{background:var(--green-soft);font-weight:700;color:var(--green-dark)}
+.card,.stat,.tbl-wrap{border-radius:18px;box-shadow:var(--shadow)}
+.stat .val{font-family:var(--font-body);font-size:34px;font-weight:600;letter-spacing:-.04em}
+.stat:hover{transform:none;border-color:var(--line)}
+.hero{background:var(--card);color:var(--ink);border:1px solid var(--line);padding:28px;border-radius:22px}
+.hero::after{display:none}
+.hero .big{font-family:var(--font-body);font-size:68px;font-weight:600;letter-spacing:-.06em;color:var(--green-dark);line-height:1.1}
+.hero .eyebrow,.hero-row .k{text-transform:none;letter-spacing:0;opacity:1;color:var(--muted);font-weight:500;font-size:12px}
+.hero-row,.hero-row .cell+.cell{border-color:var(--line)}
+.hero-row .v{font-family:var(--font-body);font-weight:600;letter-spacing:-.03em}
+table.data th{font-size:11px;text-transform:none;letter-spacing:0;font-weight:600;background:var(--bg);border-bottom:1px solid var(--line)}
+table.data td{padding:15px 14px;font-size:13px}
+.badge{text-transform:none;letter-spacing:0;font-weight:600;font-size:11px}
+.modal{border-radius:22px;box-shadow:0 30px 100px #0003}
+.modal-head h3{font-size:20px}
+.report-preview header{padding:20px 28px;background:var(--card)}
+.report-preview header b{font-size:20px;letter-spacing:-.03em}
+.report-preview small{font-size:12px;line-height:1.6}
+.report-preview iframe{box-shadow:0 8px 32px #0000000c;border-radius:14px}
+.auth-wrap{background:var(--bg)}
+.auth-card{padding:32px;border-radius:24px}
+.auth-brand h1{font-size:25px;letter-spacing:-.04em}
+.bottom-nav{background:color-mix(in srgb,var(--card) 90%,transparent);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px)}
+.bnav-item{text-transform:none!important;letter-spacing:0!important;font-weight:500!important}
+}
+@media screen and (max-width:1100px){.content{padding:24px 20px 80px}.layout{grid-template-columns:210px minmax(0,1fr)}.review-summary>div{padding:16px}}
+@media screen and (max-width:860px){.layout{display:block}.content{padding:22px 16px 100px}.topbar{padding:0 16px}.page-head h2{font-size:28px}.review-tools{gap:16px}.c8-toolbar{gap:14px;padding:16px}.review-summary{gap:10px}.review-summary strong{font-size:28px}.hero .big{font-size:54px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+
+/* Kontras jelas untuk kad sebenar dashboard dan navigasi telefon. */
+@media screen {
+:root:not([data-theme="dark"]){--bg:#eef0f4;--line:#d3d8df;--muted:#515964}
+.scard{background:var(--card);border:1px solid var(--line);box-shadow:0 3px 12px #172b4d08;border-radius:18px;padding:20px}
+.scard.wide{background:var(--card);border-color:var(--line)}
+.scard.r{background:var(--card);border-color:var(--line)}
+.scard .sh{gap:12px;align-items:center}
+.scard .sh>svg{box-sizing:content-box;width:20px;height:20px;padding:9px;background:var(--blue-soft);border-radius:11px;stroke-width:1.8;color:var(--blue);margin:0}
+.scard.wide .sh>svg{background:var(--green-soft);color:var(--green-dark)}
+.scard.r .sh>svg{background:var(--danger-soft);color:var(--danger)}
+.scard .st{font-size:14px;font-weight:600;line-height:1.35}
+.scard .ss{font-size:12px;line-height:1.5;color:var(--muted)}
+.scard .sv{margin-top:20px}
+.scard .sv b{font-weight:650;font-size:36px}
+.scard .sv span{font-size:13px;font-weight:500}
+.scard .track{background:var(--line);height:6px;margin-top:18px}
+.rcard{box-shadow:0 2px 8px #172b4d06}
+.sect{margin-top:28px;margin-bottom:16px}
+.sect-note{color:var(--muted);font-weight:400}
+.nav-item svg,.qa svg,.bnav-item svg{stroke-width:1.8}
+}
+@media screen and (max-width:860px){
+.bottom-nav{border:1px solid var(--line);box-shadow:0 6px 24px #15233220}
+.bnav-item{color:var(--muted)}
+.bnav-item svg{width:23px;height:23px;flex:none}
+.bnav-item span{display:block!important;font-size:10px;line-height:1.3;margin-top:4px}
+.bnav-item.active{color:#fff}
+#bnavMore svg{stroke:none}
+}
+@media screen and (max-width:420px){.scard{padding:15px}.scard .sh{gap:8px}.scard .sh>svg{width:18px;height:18px;padding:7px}.scard .st{font-size:13px}}

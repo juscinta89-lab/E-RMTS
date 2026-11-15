@@ -52,6 +52,9 @@ function terapkanIdentiti(){
    0. Ikon (SVG inline, Material-style)
 --------------------------------------------------------- */
 const IC = {
+  more:'<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>',
+  absent:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="17" rx="3"/><path d="M8 2v4M16 2v4M9 11l6 6M15 11l-6 6"/></svg>',
+
   dash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>',
   check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M8 12l3 3 5-6"/><path d="M8 2v4M16 2v4"/></svg>',
   student:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10L12 5 2 10l10 5 10-5z"/><path d="M6 12v5c0 1 3 3 6 3s6-2 6-3v-5"/></svg>',
@@ -204,7 +207,8 @@ function closeModal(){$('#modal-back').classList.remove('show');}
 /* ---------------------------------------------------------
    2. Lapisan data (DB) — abstraksi Firebase / Demo
 --------------------------------------------------------- */
-const USE_FIREBASE = !!window.__FIREBASE_READY__ && typeof firebase !== 'undefined';
+const LOCAL_PREVIEW = ['localhost','127.0.0.1'].includes(location.hostname) && new URLSearchParams(location.search).has('preview');
+const USE_FIREBASE = !LOCAL_PREVIEW && !!window.__FIREBASE_READY__ && typeof firebase !== 'undefined';
 let fbAuth=null, fbDB=null;
 
 if (USE_FIREBASE){
@@ -740,7 +744,7 @@ function buildShell(){
   let bitems=tabKiri.map(id=>tab(cari(id))).join('');
   if(adaImbas) bitems+=`<div class="bnav-item" data-nav="imbas" title="Imbas QR">${IC.qr}<span>Imbas</span></div>`;
   bitems+=tabKanan.map(id=>tab(cari(id))).join('');
-  if(extra.length) bitems+=`<div class="bnav-item" id="bnavMore" title="Menu lain">${IC.gear}<span>Lagi</span></div>`;
+  if(extra.length) bitems+=`<div class="bnav-item" id="bnavMore" title="Menu lain" aria-label="Menu lain">${IC.more}<span>Lagi</span></div>`;
   $('#app').innerHTML=`
     <div class="topbar">
       <div style="display:flex;align-items:center;gap:10px;min-width:0">
@@ -966,7 +970,7 @@ async function pageDashboard(v){
         <div class="sv"><b id="hv-h">0</b><span>murid</span></div>
       </div>
       <div class="scard r">
-        <div class="sh">${IC.check}<div><div class="st">Tidak Hadir</div>
+        <div class="sh">${IC.absent}<div><div class="st">Tidak Hadir</div>
           <div class="ss">${d} ${MONTHS[m]}</div></div></div>
         <div class="sv"><b id="hv-x">0</b><span>murid</span></div>
       </div>
@@ -1082,12 +1086,14 @@ async function pageKehadiran(v){
         <div class="sub" id="c8-sub"></div></div>
       <div class="spacer"></div>
       <span class="savepill" id="c8-save"></span>
-      <button class="btn btn-blue" id="printC8">${IC.print} Cetak</button></div>
+      <button class="btn btn-blue" id="printC8">${IC.print} Pratonton / Cetak</button></div>
     <div class="c8-toolbar no-print">
       <div class="field"><label>Kelas</label><select id="c8-kelas">${clsOpts}</select></div>
       <div class="field"><label>Bulan</label><select id="c8-bulan">${moOpts}</select></div>
       <div class="field"><label>Tahun</label><select id="c8-tahun">${yOpts}</select></div>
     </div>
+    <div class="review-tools no-print"><label>Cari murid<input id="c8-search" type="search" placeholder="Taip nama murid…"></label><div class="review-help"><b>Semak sebelum sahkan</b><span>Jumlah terkumpul bermula Januari. Sel kosong belum dikira hadir atau tidak hadir.</span></div></div>
+    <div id="c8-summary" class="review-summary no-print" aria-live="polite"></div>
     <div id="c8-holder"></div>
     <div class="chips no-print" style="margin-top:14px">
       <span class="chip"><i></i> Hadir</span>
@@ -1099,6 +1105,7 @@ async function pageKehadiran(v){
     <p class="no-print" style="color:var(--muted);font-size:12.5px;margin-top:10px">
       Ketik sel untuk kitar kosong → ✓ → ✕. Auto simpan.</p>`;
 
+  $('#c8-search').oninput=()=>filterC8Rows();
   $('#c8-kelas').onchange=e=>{C8_STATE.kelasId=e.target.value;renderC8();};
   $('#c8-bulan').onchange=e=>{C8_STATE.month=+e.target.value;renderC8();};
   $('#c8-tahun').onchange=e=>{C8_STATE.year=+e.target.value;renderC8();};
@@ -1262,6 +1269,7 @@ async function renderC8(){
     </div>`;
 
   recalcFooter();
+  filterC8Rows();
   // klik sel — hanya jika BELUM disahkan
   if(!C8_STATE.locked){
     $$('.c8 td.day').forEach(td=>{
@@ -1594,7 +1602,7 @@ async function pageRumusan(v){
   if(!onPage('rumusan'))return; // halaman lain sudah dibuka — jangan tindih
   v.innerHTML=`
     <div class="page-head"><h2>Rumusan &amp; Laporan</h2><div class="spacer"></div>
-      <button class="btn btn-blue" id="printRum">${IC.print} Cetak / PDF</button></div>
+      <button class="btn btn-blue" id="printRum">${IC.print} Pratonton / PDF</button></div>
     <div class="c8-toolbar no-print">
       <div class="field"><label>Jenis laporan</label><select id="r-jenis">
         <option value="kelas" ${RUM_STATE.jenis==='kelas'?'selected':''}>Rumusan ikut Kelas</option>
@@ -1806,11 +1814,7 @@ async function printReport(tajuk,label,bodyHTML,orient,signL,signR){
       <div class="s">DISEDIAKAN OLEH<div class="line">${esc(signL||'……………………………………')}</div></div>
       <div class="s">DISAHKAN OLEH<div class="line">${esc(signR||'……………………………………')}</div></div>
     </div></body></html>`;
-  const fr=document.createElement('iframe');
-  fr.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0';
-  document.body.appendChild(fr); fr.srcdoc=html;
-  fr.onload=()=>{setTimeout(()=>{try{fr.contentWindow.focus();fr.contentWindow.print();}
-    catch(e){toast('Gagal cetak: '+e.message,'err');} setTimeout(()=>fr.remove(),3000);},200);};
+  previewReport(html);
 }
 
 async function printRumusan(){
@@ -1838,6 +1842,7 @@ async function printBorang(){
   const [school,classes]=await Promise.all([DB.getSchool(),DB.getClasses()]);
   const cls=classes.find(c=>c.id===kelasId)||{};
   const clone=src.cloneNode(true);
+  clone.querySelectorAll('[hidden]').forEach(el=>el.removeAttribute('hidden'));
   // tukar input kepada teks
   clone.querySelectorAll('input').forEach(inp=>{
     const td=inp.parentElement; td.textContent=inp.value||''; });
@@ -1876,11 +1881,7 @@ async function printBorang(){
       <div class="s">DISAHKAN OLEH<div class="line">${esc(school.pkhem&&school.pkhem!=='—'?school.pkhem:'……………………………………')}<br>GPK HEM</div></div>
     </div>
   </body></html>`;
-  const fr=document.createElement('iframe');
-  fr.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0';
-  document.body.appendChild(fr); fr.srcdoc=html;
-  fr.onload=()=>{ setTimeout(()=>{ try{fr.contentWindow.focus();fr.contentWindow.print();}
-    catch(e){toast('Gagal cetak: '+e.message,'err');} setTimeout(()=>fr.remove(),3000); },200); };
+  previewReport(html);
 }
 
 
@@ -2182,11 +2183,7 @@ async function printQRCards(kelasId){
     .nm{font-size:11px;font-weight:bold;margin-top:2mm}
     .kl{font-size:9px;color:#333;margin-top:1mm}
   </style></head><body>${cards}</body></html>`;
-  const fr=document.createElement('iframe');
-  fr.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0';
-  document.body.appendChild(fr); fr.srcdoc=html;
-  fr.onload=()=>{setTimeout(()=>{try{fr.contentWindow.focus();fr.contentWindow.print();}
-    catch(e){toast('Gagal cetak: '+e.message,'err');} setTimeout(()=>fr.remove(),4000);},250);};
+  previewReport(html);
   DB.addLog('Cetak kad QR',clsLabel(cls)+' ('+roster.length+' murid)');
 }
 
@@ -2272,11 +2269,7 @@ async function printC8All(program='RMT'){
       .sign{display:flex;justify-content:space-between;margin-top:18px;font-size:10px;page-break-inside:avoid}
       .sign .s{width:38%}.sign .line{border-top:1px solid #000;margin-top:32px;padding-top:4px}
     </style></head><body>${secs}</body></html>`;
-    const fr=document.createElement('iframe');
-    fr.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0';
-    document.body.appendChild(fr); fr.srcdoc=html;
-    fr.onload=()=>{setTimeout(()=>{try{fr.contentWindow.focus();fr.contentWindow.print();}
-      catch(e){toast('Gagal cetak: '+e.message,'err');} setTimeout(()=>fr.remove(),4000);},250);};
+    previewReport(html);
     DB.addLog('Cetak pukal C8',`${program} · ${MONTHS[month]} ${year} (${list.length} kelas)`);
   }catch(e){ toast(authErr(e),'err'); }
   if(btn){btn.disabled=false;btn.innerHTML=IC.print+' Cetak Semua Kelas';}
@@ -2293,6 +2286,7 @@ async function printC8(program='RMT'){
   const sahP=await DB.getSah(kelasId,year,month);
 
   const clone=src.cloneNode(true);
+  clone.querySelectorAll('[hidden]').forEach(el=>el.removeAttribute('hidden'));
   const t=clone.querySelector('.c8-title'); if(t){const tr=t.closest('tr'); if(tr)tr.remove();}
   // simbol rasmi borang: hadir = / , tidak hadir = X
   clone.querySelectorAll('td.day').forEach(td=>{
@@ -2351,15 +2345,7 @@ async function printC8(program='RMT'){
     </div>
   </body></html>`;
 
-  const fr=document.createElement('iframe');
-  fr.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0';
-  document.body.appendChild(fr);
-  fr.srcdoc=html;
-  fr.onload=()=>{ setTimeout(()=>{
-    try{ fr.contentWindow.focus(); fr.contentWindow.print(); }
-    catch(e){ toast('Gagal buka cetakan: '+e.message,'err'); }
-    setTimeout(()=>fr.remove(),3000);
-  },200); };
+  previewReport(html);
 }
 
 function showSaving(){const s=$('#c8-save');if(s)s.innerHTML='<span class="spinner dark" style="width:14px;height:14px"></span> Menyimpan…';}
@@ -2396,6 +2382,17 @@ function recalcFooter(){
       td.textContent=(th&&!th.classList.contains('we')&&!th.classList.contains('hol'))?total:'';
     }
   });
+  const summary=$('#c8-summary');
+  if(summary){
+    let h=0,x=0,blank=0;
+    rosterRows.forEach(row=>row.querySelectorAll('td.day').forEach(td=>{
+      if(td.classList.contains('present'))h++;
+      else if(td.classList.contains('absent'))x++;
+      else if(!td.dataset.lock)blank++;
+    }));
+    summary.innerHTML=`<div><span>Murid dalam kelas</span><strong>${rosterRows.length}</strong></div><div><span>Rekod hadir</span><strong>${h}</strong></div><div><span>Rekod tidak hadir</span><strong>${x}</strong></div><div><span>Sel boleh tanda yang kosong</span><strong>${blank}</strong></div>`;
+  }
+
 }
 
 /* ---------------------------------------------------------
@@ -3101,7 +3098,18 @@ const CSV_TEMPLATE='nama,mykid,jantina,tahun,kelas,mula,tamat\n'+
 window.closeModal=closeModal;
 (async function init(){
   terapkanIdentiti();
-  if('serviceWorker' in navigator){
+  if(LOCAL_PREVIEW){
+    CURRENT={...DEMO.users[0]};
+    C8_STATE.kelasId='k1';
+    location.hash='#kehadiran';
+    await enterApp();
+    const banner=document.createElement('div');
+    banner.textContent='PREVIEW • Data contoh sahaja • Belum diterbitkan';
+    banner.style.cssText='position:fixed;bottom:8px;left:50%;transform:translateX(-50%);z-index:9999;background:#123d2c;color:white;padding:8px 18px;border-radius:30px;font-size:12px;pointer-events:none';
+    document.body.appendChild(banner);
+    return;
+  }
+  if(!LOCAL_PREVIEW && 'serviceWorker' in navigator){
     navigator.serviceWorker.register('./service-worker.js').catch(()=>{});
   }
   // Firebase: tangani hasil redirect Google (jika popup disekat tadi)
@@ -3120,3 +3128,25 @@ window.closeModal=closeModal;
   renderAuth();
 
 })();
+
+function filterC8Rows(){
+  const q=($('#c8-search')?.value||'').trim().toLocaleLowerCase('ms');
+  $$('.c8 tbody tr').forEach(row=>{row.hidden=!!q && !row.querySelector('.name')?.textContent.toLocaleLowerCase('ms').includes(q);});
+}
+function previewReport(html){
+  const overlay=document.createElement('div');
+  overlay.className='report-preview';
+  overlay.setAttribute('role','dialog'); overlay.setAttribute('aria-modal','true');
+  overlay.setAttribute('aria-label','Pratonton laporan');
+  overlay.innerHTML='<header><div><b>Pratonton laporan</b><small>Semak kelas, bulan dan jumlah sebelum mencetak. Pilih Save as PDF dalam dialog cetakan untuk simpan.</small></div><button class="btn btn-primary" data-print disabled>Cetak / Simpan PDF</button><button class="btn" data-close>Tutup</button></header><iframe title="Pratonton dokumen laporan"></iframe>';
+  const previous=document.activeElement;
+  const close=()=>{overlay.remove();document.removeEventListener('keydown',escape);previous?.focus();};
+  const escape=e=>{if(e.key==='Escape')close();};
+  document.addEventListener('keydown',escape);
+  overlay.querySelector('[data-close]').onclick=close;
+  const frame=overlay.querySelector('iframe');
+  frame.onload=()=>{overlay.querySelector('[data-print]').disabled=false;};
+  overlay.querySelector('[data-print]').onclick=()=>{frame.contentWindow.focus();frame.contentWindow.print();};
+  document.body.appendChild(overlay); frame.srcdoc=html;
+  overlay.querySelector('[data-close]').focus();
+}
