@@ -1,12 +1,12 @@
 /* Service Worker — RMT Attendance SK Belukar
    Strategi: network-first untuk dokumen, cache-first untuk aset statik.
    Naikkan CACHE_VER setiap kali fail dikemas kini supaya auto-update. */
-const CACHE_VER = 'rmt-skb-v41';
+const CACHE_VER = 'rmt-skb-v42';
 const SHELL = [
   './',
   './index.html',
   './css/styles.css',
-  './js/app.js',
+  './js/app.js?v=42',
   './js/vendor/jsQR-1.4.0.js',
   './js/takwim.js',
   './js/firebase-config.js',
@@ -18,7 +18,7 @@ const SHELL = [
 ];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE_VER).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(CACHE_VER).then(c => c.addAll(SHELL.map(url=>new Request(url,{cache:'reload'})))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', e => {
@@ -39,11 +39,12 @@ self.addEventListener('fetch', e => {
   }
 
   // Dokumen HTML: network-first (dapat versi terkini), fallback cache
-  if (req.mode === 'navigate' || req.destination === 'document') {
+  if (url.origin === self.location.origin && (req.mode === 'navigate' || req.destination === 'document' || req.destination === 'script' || req.destination === 'style')) {
     e.respondWith(
-      fetch(req).then(res => {
+      fetch(req,{cache:'no-cache'}).then(res => {
+        if(!res.ok)throw new Error('HTTP '+res.status);
         const copy = res.clone(); caches.open(CACHE_VER).then(c => c.put(req, copy)); return res;
-      }).catch(() => caches.match(req).then(r => r || caches.match('./index.html')))
+      }).catch(() => caches.match(req).then(r => r || (req.mode === 'navigate' ? caches.match('./index.html') : Response.error())))
     );
     return;
   }
