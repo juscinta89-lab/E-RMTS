@@ -1132,6 +1132,18 @@ async function pageKehadiran(v){
   renderC8();
 }
 
+// Jumlah tidak hadir dari Januari hingga bulan sebelum bulan yang dipilih.
+async function cumulativeAbsences(kelasId,year,month){
+  const records=await Promise.all(Array.from({length:month},(_,m)=>DB.getAttendance(kelasId,year,m)));
+  const totals={};
+  for(const rec of records){
+    for(const [sid,days] of Object.entries(rec||{})){
+      totals[sid]=(totals[sid]||0)+Object.values(days||{}).filter(mark=>mark==='X').length;
+    }
+  }
+  return totals;
+}
+
 async function renderC8(){
   const renderVersion=(C8_STATE.renderVersion||0)+1;C8_STATE.renderVersion=renderVersion;
   const holder=$('#c8-holder'); if(!holder)return;
@@ -1143,9 +1155,7 @@ async function renderC8(){
   const rec=await DB.getAttendance(kelasId,year,month);
   const sahInfo=await DB.getSah(kelasId,year,month);
 
-  // rekod bulan lepas (untuk kolum "BULAN LEPAS")
-  const pm = month===0?11:month-1, py = month===0?year-1:year;
-  const recPrev=await DB.getAttendance(kelasId,py,pm);
+  const absPrevious=await cumulativeAbsences(kelasId,year,month);
   if(renderVersion!==C8_STATE.renderVersion||!holder.isConnected)return;
   C8_STATE.locked=!!sahInfo;
 
@@ -1178,11 +1188,10 @@ async function renderC8(){
       const mk=sr[c.d]; if(mk==='H')hadir++; if(mk==='X')absSemasa++;
       const cls=[c.we?'we':'',c.hol?'hol':'',mk==='H'?'present':'',mk==='X'?'absent':'',c.d===hariIni?'today':''].join(' ');
       const sym=mk==='H'?'✓':mk==='X'?'✕':'';
-      const clickable=(!c.we&&!c.hol);
+      const clickable=!c.we&&!c.hol&&bolehTanda(c.d);
       return `<td class="day ${cls}" data-sid="${s.id}" data-day="${c.d}" ${clickable?'':'data-lock="1"'}>${sym}</td>`;
     }).join('');
-    // bulan lepas: bilangan X
-    const prev=recPrev[s.id]||{}; let absLepas=0; Object.values(prev).forEach(x=>{if(x==='X')absLepas++;});
+    const absLepas=absPrevious[s.id]||0;
     const jumlahSemua=absSemasa+absLepas;
     bodyRows+=`<tr>
       <td class="col-bil">${i+1}</td>
@@ -1239,7 +1248,7 @@ async function renderC8(){
           <tr>
             ${dayTh}
             <th class="col-abs">BULAN<br>SEMASA</th>
-            <th class="col-abs">BULAN<br>LEPAS</th>
+            <th class="col-abs">TERKUMPUL<br>SEBELUMNYA</th>
             <th class="col-abs">JUMLAH<br>SEMUA</th>
           </tr>
         </thead>
@@ -1308,6 +1317,8 @@ async function renderC8(){
 
 async function cycleCell(td){
   if(C8_STATE.locked){toast('Bulan ini telah disahkan — tidak boleh diubah.','err');return;}
+  if(td.dataset.saving)return;
+  td.dataset.saving='1';
   const sid=td.dataset.sid, day=+td.dataset.day;
   const cur=td.classList.contains('present')?'H':td.classList.contains('absent')?'X':'';
   const next={'':'H','H':'X','X':''}[cur];
@@ -1321,7 +1332,15 @@ async function cycleCell(td){
   try{
     await DB.saveAttendanceCell(C8_STATE.kelasId,C8_STATE.year,C8_STATE.month,sid,day,next||null);
     showSaved();
-  }catch(e){ toast('Gagal simpan: '+e.message,'err'); }
+  }catch(e){
+    td.classList.remove('present','absent');
+    if(cur==='H')td.classList.add('present');
+    if(cur==='X')td.classList.add('absent');
+    td.textContent=cur==='H'?'✓':cur==='X'?'✕':'';
+    updateRowTotals(sid); recalcFooter();
+    const save=$('#c8-save'); if(save)save.textContent='Gagal simpan';
+    toast('Gagal simpan: '+e.message,'err');
+  }finally{delete td.dataset.saving;}
 }
 
 /* ---------------------------------------------------------
@@ -2175,8 +2194,7 @@ async function printQRCards(kelasId){
 async function c8SectionHTML(school,users,cls,year,month,program='RMT'){
   const roster=await rosterStudents(cls.id,year,month);
   const rec=await DB.getAttendance(cls.id,year,month);
-  const pm=month===0?11:month-1, py=month===0?year-1:year;
-  const recPrev=await DB.getAttendance(cls.id,py,pm);
+  const absPrevious=await cumulativeAbsences(cls.id,year,month);
   const sah=await DB.getSah(cls.id,year,month);
   const guru=users.find(u=>u.id===cls.guruId);
   const nDays=daysInMonth(year,month);
@@ -2192,7 +2210,7 @@ async function c8SectionHTML(school,users,cls,year,month,program='RMT'){
       if(mk==='H'){sym='/';h++;footH[c.d]=(footH[c.d]||0)+1;}
       else if(mk==='X'){sym='X';x++;footX[c.d]=(footX[c.d]||0)+1;}
       return `<td class="${c.off?'we':''}">${sym}</td>`;}).join('');
-    const prev=recPrev[st.id]||{}; let xl=0; Object.values(prev).forEach(k=>{if(k==='X')xl++;});
+    const xl=absPrevious[st.id]||0;
     body+=`<tr><td>${i+1}</td><td class="name">${esc(st.nama)}</td><td>${st.tahun}</td><td>${st.jantina}</td>
       ${cells}<td><b>${h}</b></td><td>${x}</td><td>${xl}</td><td>${x+xl}</td></tr>`;
   });
@@ -2214,7 +2232,7 @@ async function c8SectionHTML(school,users,cls,year,month,program='RMT'){
         <th rowspan="2"><span class="vert">TAHUN</span></th><th rowspan="2"><span class="vert">JANTINA</span></th>
         <th colspan="${nDays}">BULAN : ${MONTHS[month].toUpperCase()}</th>
         <th rowspan="2"><span class="vert">JUMLAH HARI</span></th><th colspan="3">TIDAK HADIR</th></tr>
-      <tr>${dayTh}<th>BULAN<br>SEMASA</th><th>BULAN<br>LEPAS</th><th>JUMLAH<br>SEMUA</th></tr></thead>
+      <tr>${dayTh}<th>BULAN<br>SEMASA</th><th>TERKUMPUL<br>SEBELUMNYA</th><th>JUMLAH<br>SEMUA</th></tr></thead>
     <tbody>${body}</tbody>
     <tfoot>${foot(footX,'JUMLAH MURID TIDAK HADIR')}${foot(footH,'JUMLAH MURID HADIR')}${foot(null,'JUMLAH KEHADIRAN SEPATUTNYA')}</tfoot></table>
     <p style="font-size:10px">* Sekolah ganti — dikira sebagai hari persekolahan.</p>
